@@ -44,10 +44,39 @@ class Database(commands.Cog):
                     last_post_time FLOAT
                 )
             """)
+            # Setup table for server roles
+            await c.execute(f"""
+                CREATE TABLE IF NOT EXISTS serverroles_{guild_id}(
+                    role_name TEXT PRIMARY KEY,
+                    role_id INTEGER
+                )
+            """)
             await conn.commit()
-        except Exception as e:
-            print(f"Error setting up database for guild {guild_id}: {e}")
 
+            # Insert default role names into the table
+            role_names = [
+                "Read the Rules",
+                "Patreon Announcements",
+                "Announcements",
+                "Behind the Scenes",
+                "Showcase"
+            ]
+            for name in role_names:
+                await c.execute(f"INSERT OR IGNORE INTO serverroles_{guild_id}(role_name) VALUES (?)", (name,))
+            await conn.commit()
+
+            # Setup table for votes
+            await c.execute(f"""
+                CREATE TABLE IF NOT EXISTS votes(
+                    post_id INTEGER,
+                    user_id INTEGER,
+                    PRIMARY KEY(post_id, user_id)
+                )
+            """)
+
+            await conn.close()
+        except Exception as e:
+            print(f"Error setting up database: {e}")
         await conn.close()
 
     async def get_faq(self, number, guild_id):
@@ -80,6 +109,21 @@ class Database(commands.Cog):
 
     async def close_db(self):
         await self.conn.close()
+
+    async def set_server_role(self, guild_id, name, role_id):
+        try:
+            await self.c.execute(f"""
+                INSERT OR REPLACE INTO serverroles_{guild_id}(name, role_id)
+                VALUES (?, ?)
+            """, (name, role_id))
+            await self.conn.commit()
+        except Exception as e:
+            print(f"Error setting server role: {e}")
+
+    async def get_all_faqs(self, guild_id):
+        await self.c.execute(f"SELECT number, content FROM faqs_{guild_id}")
+        data = await self.c.fetchall()
+        return data
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):

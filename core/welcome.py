@@ -7,7 +7,7 @@ class RoleButton(Button):
         super().__init__(label=label, custom_id=role_id, emoji=emoji)
         self.role_id = role_id
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(self, interaction):
         role = interaction.guild.get_role(int(self.role_id))
         if role in interaction.user.roles:
             await interaction.user.remove_roles(role)
@@ -17,15 +17,21 @@ class RoleButton(Button):
             await interaction.response.send_message(f"Added {self.label} role!", ephemeral=True)
 
 class RulesView(View):
-    def __init__(self):
+    def __init__(self, db, guild_id):
         super().__init__(timeout=None)
-        # Add roles buttons
-        # (You can replace 'ROLE_ID' with the actual role ID for each role)
-        self.add_item(RoleButton(label="Read the Rules", role_id="ROLE_ID1", emoji="📜"))
-        self.add_item(RoleButton(label="Patreon Announcements", role_id="ROLE_ID2", emoji="🎉"))
-        self.add_item(RoleButton(label="Announcements", role_id="ROLE_ID3", emoji="📢"))
-        self.add_item(RoleButton(label="Behind the Scenes", role_id="ROLE_ID4", emoji="🎥"))
-        self.add_item(RoleButton(label="Showcase", role_id="ROLE_ID5", emoji="🖼"))
+        
+        role_mapping = {
+            "Read the Rules": "📜",
+            "Patreon Announcements": "🎉",
+            "Announcements": "📢",
+            "Behind the Scenes": "🎥",
+            "Showcase": "🖼"
+        }
+
+        for role_name, emoji in role_mapping.items():
+            role_id = db.get_server_role(guild_id, role_name)
+            if role_id:  # Only add the button if the role_id exists in the database
+                self.add_item(RoleButton(label=role_name, role_id=role_id, emoji=emoji))
 
 class WelcomeNewUser(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -37,14 +43,6 @@ class WelcomeNewUser(commands.Cog):
         embed = discord.Embed(title="Welcome to our server!", description="Here are the rules...")
         view = RulesView()
         await member.send(embed=embed, view=view)
-
-    @commands.command(name='setRules')
-    @commands.has_permissions(administrator=True)
-    async def set_rules(self, interaction: discord.Interaction):
-        # Send the rules in the desired channel with the role buttons
-        embed = discord.Embed(title="Server Rules", description="Please select your roles below.")
-        view = RulesView()
-        await interaction.response.send_message(embed=embed, view=view)
 
 def setup(bot):
     bot.add_cog(WelcomeNewUser(bot))
