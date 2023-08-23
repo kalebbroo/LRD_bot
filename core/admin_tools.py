@@ -35,13 +35,28 @@ class AdminControls(commands.Cog):
                 await interaction.send(f"Error removing FAQ: {e}")
 
         elif choice == "setRole":
-            role_name = args[0]
-            role = get(interaction.guild.roles, name=role_name)
+            # Display role names defined in the database for the server
+            role_names = ["Read the Rules", "Patreon Announcements", "Announcements", "Behind the Scenes", "Showcase"]
+            selected_role_name = await interaction.context_menu(
+                options=[discord.SelectOption(label=name) for name in role_names],
+                placeholder="Select a predefined role name"
+            )
+
+            # Display all roles from the server to the admin
+            server_roles = interaction.guild.roles
+            server_role_names = [role.name for role in server_roles]
+            selected_server_role = await interaction.context_menu(
+                options=[discord.SelectOption(label=name) for name in server_role_names],
+                placeholder="Select a server role"
+            )
+
+            role = discord.utils.get(server_roles, name=selected_server_role.value)
             if role:
-                # Here you can save the role to a database or cache
-                await interaction.send(f"Role {role_name} set as admin role for the bot.")
+                # Save the role name and ID to the database
+                await self.db.set_server_role(interaction.guild.id, selected_role_name.value, role.id)
+                await interaction.send(f"Role {selected_role_name.value} linked to {role.name}.")
             else:
-                await interaction.send(f"Role {role_name} not found in the server.")
+                await interaction.send(f"Error: Role not found.")
 
         elif choice == "setChannel":
             channel_type = args[0]
