@@ -18,7 +18,7 @@ class AdminControls(commands.Cog):
         Choice(name='Set Role', value="setRole"),
         Choice(name='Set Channel', value="setChannel")
     ])
-    async def setup(self, interaction, choice: str, *args):
+    async def setup(self, interaction, choice: str = None, *args):
         if choice == "addFAQ":
             number = int(args[0])
             content = args[1]
