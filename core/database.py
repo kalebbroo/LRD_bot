@@ -6,7 +6,7 @@ import os
 load_dotenv()
 
 class Database(commands.Cog):
-    def __init__(self, bot:commands.Bot):
+    def __init__(self, bot):
         self.bot = bot
         self.conn = None
         self.c = None

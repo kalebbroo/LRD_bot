@@ -34,15 +34,26 @@ class RulesView(View):
                 self.add_item(RoleButton(label=role_name, role_id=role_id, emoji=emoji))
 
 class WelcomeNewUser(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot):
         self.bot = bot
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        # Send a private message to the new user
+        # Get the default channel
+        default_channel = member.guild.system_channel
+        if not default_channel:
+            # If the system channel isn't set, try to get the first channel the bot can send messages to
+            default_channel = next((c for c in member.guild.text_channels if c.permissions_for(member.guild.me).send_messages), None)
+        
+        if not default_channel:
+            return  # No channel found to send the message
+
         embed = discord.Embed(title="Welcome to our server!", description="Here are the rules...")
-        view = RulesView()
-        await member.send(embed=embed, view=view)
+        view = RulesView(self.bot.db, member.guild.id)
+
+        # Send the message in the default channel as an ephemeral message
+        await default_channel.send(content=f"Welcome {member.mention}!", embed=embed, view=view, ephemeral=True)
+
 
 def setup(bot):
     bot.add_cog(WelcomeNewUser(bot))
