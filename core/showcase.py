@@ -2,16 +2,17 @@ import discord
 from discord.ext import commands
 from discord.ui import Button, View
 from datetime import datetime, timedelta
+import aiosqlite
 
 class VoteButton(Button):
-    def __init__(self, label, emoji, post_id):
+    def __init__(self, showcase_cog, label, emoji, post_id):
         super().__init__(style=discord.ButtonStyle.primary, label=label, emoji=emoji, custom_id=f"vote_{post_id}")
         self.post_id = post_id
+        self.showcase_cog = showcase_cog
 
-    async def callback(self, interaction: discord.Interaction):
-        # Handle vote
-        # Add a vote to the database
-        await self.db.add_vote(self.post_id, interaction.user.id)
+    async def callback(self, interaction):
+        # Handle vote using the Showcase cog's method
+        await self.showcase_cog.add_vote(self.post_id, interaction.user.id)
         await interaction.response.send_message(f"Thanks for your vote!", ephemeral=True)
 
 class Showcase(commands.Cog):
@@ -46,9 +47,9 @@ class Showcase(commands.Cog):
         embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
 
         view = View()
-        # Add two vote buttons. You can change the emoji and label as needed.
-        view.add_item(VoteButton("Vote Up", "👍", message.id))
-        view.add_item(VoteButton("Vote Down", "👎", message.id))
+        # Pass the Showcase cog reference to the VoteButton
+        view.add_item(VoteButton(self, "Vote Up", "👍", message.id))
+        view.add_item(VoteButton(self, "Vote Down", "👎", message.id))
 
         # Post the embed
         await message.channel.send(embed=embed, view=view)
@@ -57,6 +58,22 @@ class Showcase(commands.Cog):
 
         await self.db.update_last_post_time(message.author.id, message.guild.id, datetime.utcnow())
         await message.start_thread(name=f"Discussion for {message.author.name}'s post")
+
+    # Function to record a vote for a post
+    async def add_vote(self, post_id, user_id):
+        try:
+            await self.c.execute(f"INSERT INTO votes(post_id, user_id) VALUES (?, ?)", (post_id, user_id))
+            await self.conn.commit()
+        except aiosqlite.IntegrityError:
+            # This error will be raised if a vote by this user for this post already exists
+            # (due to the primary key constraint)
+            pass
+
+    # Function to get the number of votes for a post
+    async def get_votes(self, post_id):
+        await self.c.execute(f"SELECT COUNT(*) FROM votes WHERE post_id = ?", (post_id,))
+        data = await self.c.fetchone()
+        return data[0] if data else 0
 
 def setup(bot, db_cog):
     bot.add_cog(Showcase(bot, db_cog))
