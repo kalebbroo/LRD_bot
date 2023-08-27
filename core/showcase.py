@@ -16,9 +16,8 @@ class VoteButton(Button):
         await interaction.response.send_message(f"Thanks for your vote!", ephemeral=True)
 
 class Showcase(commands.Cog):
-    def __init__(self, bot, db_cog):
+    def __init__(self, bot):
         self.bot = bot
-        self.db = db_cog
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -75,5 +74,5 @@ class Showcase(commands.Cog):
         data = await self.c.fetchone()
         return data[0] if data else 0
 
-def setup(bot, db_cog):
-    bot.add_cog(Showcase(bot, db_cog))
+async def setup(bot):
+    await bot.add_cog(Showcase(bot))

@@ -3,9 +3,9 @@ from discord.ext import commands
 import re
 
 class FAQ(commands.Cog):
-    def __init__(self, bot:commands.Bot, db_cog):
+    def __init__(self, bot):
         self.bot = bot
-        self.db = db_cog
+        self.db = bot.get_cog("Database") 
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -30,5 +30,5 @@ class FAQ(commands.Cog):
         else:
             await message.reply(f"{message.author.mention} Sorry, I couldn't find FAQ #{faq_number}.")
 
-def setup(bot:commands.Bot, db_cog):
-    bot.add_cog(FAQ(bot, db_cog))
+async def setup(bot):
+    await bot.add_cog(FAQ(bot))

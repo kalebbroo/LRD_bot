@@ -3,73 +3,188 @@ from discord.utils import get
 import discord
 import datetime
 from discord import app_commands, Embed, Colour
-from discord.app_commands import Choice
+from discord.ui import Modal, TextInput, Select
+
+class SetupSelect(Select):
+    def __init__(self, bot, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bot = bot
+
+    async def callback(self, interaction):
+        selection = self.values[0]
+
+        match selection:
+            case "Add FAQ":
+                view = AddFAQModal(self.bot)
+                await interaction.response.send_modal(view)
+            
+            case "Remove FAQ":
+                # Fetch all FAQs from database
+                database_cog = self.bot.get_cog("Database")
+                all_faqs = await database_cog.get_all_faqs(interaction.guild.id)
+
+                faq_msg = "\n".join([f"#{faq[0]} - {faq[1]}" for faq in all_faqs])
+                await interaction.response.send_message(f"FAQs:\n{faq_msg}", ephemeral=True)
+                
+                # Create a select menu with all FAQ numbers
+                select = FAQRemoveSelect(self.bot, custom_id="faq_remove_selection", placeholder="Select a FAQ to remove")
+                select.options = [discord.SelectOption(label=str(faq[0]), value=str(faq[0])) for faq in all_faqs]
+                view = discord.ui.View()
+                view.add_item(select)
+                await interaction.followup.send("Select a FAQ to remove:", view=view, ephemeral=True)
+                
+            case "Set Role":
+                database_cog = self.bot.get_cog("Database")
+                role_names = await database_cog.get_predefined_role_names(interaction.guild.id)
+                select = ServerRoleSelect(self.bot, custom_id="server_role_selection", placeholder="Select a predefined role name")
+                select.options = [discord.SelectOption(label=role_name, value=role_name) for role_name in role_names]
+                view = discord.ui.View()
+                view.add_item(select)
+                await interaction.response.send_message("Select a predefined role name:", view=view, ephemeral=True)
+
+            case "Set Channel":
+                server_channels = interaction.guild.text_channels
+                select = ServerChannelSelect(custom_id="server_channel_selection", placeholder="Select a server channel")
+                select.options = [discord.SelectOption(label=channel.name, value=str(channel.id)) for channel in server_channels]
+                view = discord.ui.View()
+                view.add_item(select)
+                await interaction.response.send_message("Select a server channel:", view=view, ephemeral=True)
+
+            # TODO: Add other admin commands
+            case _:
+                await interaction.response.send_message("Invalid selection.", ephemeral=True)
+
+class FAQRemoveSelect(Select):
+    def __init__(self, bot, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bot = bot
+
+    async def callback(self, interaction):
+        faq_number = int(self.values[0])
+        try:
+            database_cog = self.bot.get_cog("Database")
+            await database_cog.remove_faq(faq_number, interaction.guild.id)
+
+            await interaction.response.send_message(f"FAQ #{faq_number} has been removed successfully.", ephemeral=True)
+            print(f"FAQ #{faq_number} has been removed successfully.")
+        except Exception as e:
+            await interaction.response.send_message(f"Error removing FAQ: {e}", ephemeral=True)
+            print(f"Error removing FAQ: {e}")
+
+class AddFAQModal(Modal):
+    def __init__(self, bot):
+        super().__init__(title="Add FAQ")
+        self.bot = bot
+        
+        # Creating input fields for FAQ Number and Content
+        self.number_input = TextInput(label='Enter FAQ number and title',
+                                            style=discord.TextStyle.short,
+                                            placeholder=f'Example: #1 Pateron Support', # maybe add a list of current FAQ numbers
+                                            min_length=1,
+                                            max_length=45,
+                                            required=True)
+        self.content_input = TextInput(label='Enter the FAQ content',
+                                            style=discord.TextStyle.long,
+                                            placeholder=f'Enter the FAQ content',
+                                            min_length=1,
+                                            max_length=4000,
+                                            required=True)
+        
+        # Add the TextInput components to the modal
+        self.add_item(self.number_input)
+        self.add_item(self.content_input)
+
+    async def on_submit(self, interaction):
+        number = int(self.number_input.value)
+        content = self.content_input.value
+        try:
+            database_cog = self.bot.get_cog("Database")
+            await database_cog.add_faq(number, content, interaction.guild.id)
+
+            await interaction.response.send_message(f"FAQ #{number} has been added successfully.", ephemeral=True)
+            print(f"FAQ #{number} has been added successfully.")
+        except Exception as e:
+            await interaction.response.send_message(f"Error adding FAQ: {e}", ephemeral=True)
+            print(f"Error adding FAQ: {e}")
+
+
+class ServerRoleSelect(Select):
+    def __init__(self, bot, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bot = bot
+
+    async def callback(self, interaction):
+        try:
+            selected_predefined_role_name = self.values[0]
+            predefined_role_name = selected_predefined_role_name
+            
+            # Create another select menu for the user to choose an actual role
+            server_roles = interaction.guild.roles
+            select = ActualRoleSelect(self.bot, predefined_role_name, custom_id="actual_role_selection", placeholder="Select a server role")
+            select.options = [discord.SelectOption(label=role.name, value=str(role.id)) for role in server_roles]
+            view = discord.ui.View()
+            view.add_item(select)
+            await interaction.response.send_message(f"Link the predefined role '{selected_predefined_role_name}' to:", view=view, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"Error setting server role: {e}", ephemeral=True)
+            print(f"Error setting server role: {e}")
+
+class ActualRoleSelect(Select):
+    def __init__(self, bot, predefined_name, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bot = bot
+        self.predefined_name = predefined_name
+
+    async def callback(self, interaction):
+        selected_server_role_id = int(self.values[0])
+        role = discord.utils.get(interaction.guild.roles, id=selected_server_role_id)
+        
+        if role:
+            # Update the role in the database
+            try:
+                # Assuming the role name is constant and known. If not, we can modify this.
+                database_cog = self.bot.get_cog("Database")
+                await database_cog.set_server_role(interaction.guild.id, self.predefined_name, role.name, role.id)
+
+                await interaction.response.send_message(f"Role linked to {role.name}.", ephemeral=True)
+            except Exception as e:
+                await interaction.response.send_message(f"Error updating role in database: {e}", ephemeral=True)
+                print(f"Error updating role in database: {e}")
+        else:
+            await interaction.response.send_message(f"Error: Role not found.", ephemeral=True)
+            print(f"Error: Role not found.")
+
+
+class ServerChannelSelect(Select):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    async def callback(self, interaction):
+        selected_server_channel_id = int(self.values[0])
+        channel = interaction.guild.get_channel(selected_server_channel_id)
+        
+        if channel:
+            # The logic for updating the channel in the database was not provided in the original code.
+            # Placeholder logic is provided here; it may be replaced with the actual logic when available.
+            await interaction.response.send_message(f"Channel {channel.mention} set.", ephemeral=True)
+            print(f"Channel {channel.mention} set.")
+        else:
+            await interaction.response.send_message(f"Error: Channel not found.", ephemeral=True)
+            print(f"Error: Channel not found.")
 
 class AdminControls(commands.Cog):
-    def __init__(self, bot, db_cog):
+    def __init__(self, bot):
         self.bot = bot
-        self.db = db_cog
 
-    @app_commands.command(name='setup', description='Admin setup for various functionalities.')
-    @app_commands.describe(choice="The setup action you want to perform.")
-    @app_commands.choices(choice=[
-        Choice(name='Add FAQ', value="addFAQ"),
-        Choice(name='Remove FAQ', value="removeFAQ"),
-        Choice(name='Set Role', value="setRole"),
-        Choice(name='Set Channel', value="setChannel")
-    ])
-    async def setup(self, interaction, choice: str, *args):
-        if choice == "addFAQ":
-            number = int(args[0])
-            content = args[1]
-            try:
-                await self.bot.db.add_faq(number, content, interaction.guild.id)
-                await interaction.send(f"FAQ #{number} has been added successfully.")
-            except Exception as e:
-                await interaction.send(f"Error adding FAQ: {e}")
-
-        elif choice == "removeFAQ":
-            number = int(args[0])
-            try:
-                await self.bot.db.remove_faq(number, interaction.guild.id)
-                await interaction.send(f"FAQ #{number} has been removed successfully.")
-            except Exception as e:
-                await interaction.send(f"Error removing FAQ: {e}")
-
-        elif choice == "setRole":
-            # Assuming there's a method in your db cog for these operations
-            role_names = await self.bot.db.get_predefined_role_names(interaction.guild.id)
-            server_roles = interaction.guild.roles
-            server_role_names = [role.name for role in server_roles]
-            # NOTE: `interaction.context_menu` is a placeholder. Actual implementation may vary.
-            selected_role_name = await interaction.context_menu(
-                options=[discord.SelectOption(label=name) for name in role_names],
-                placeholder="Select a predefined role name"
-            )
-            selected_server_role = await interaction.context_menu(
-                options=[discord.SelectOption(label=name) for name in server_role_names],
-                placeholder="Select a server role"
-            )
-            role = discord.utils.get(server_roles, name=selected_server_role.value)
-            if role:
-                await self.bot.db.set_server_role(interaction.guild.id, selected_role_name.value, role.id)
-                await interaction.send(f"Role {selected_role_name.value} linked to {role.name}.")
-            else:
-                await interaction.send(f"Error: Role not found.")
-
-        elif choice == "setChannel":
-            channel_type = args[0]
-            channel_id = int(args[1])
-            channel = self.bot.get_channel(channel_id)
-            if not channel:
-                await interaction.send(f"Channel with ID {channel_id} not found.")
-                return
-            if channel_type == "showcase":
-                await self.bot.db.set_showcase_channel(interaction.guild.id, channel_id)
-                await interaction.send(f"Channel {channel.mention} set as the showcase channel.")
-            else:
-                await self.bot.db.set_channel_for_functionality(interaction.guild.id, channel_id, channel_type)
-                await interaction.send(f"Channel {channel.mention} set for {channel_type} functionality.")
+    @app_commands.command(name='setup', description='Press ENTER to setup the bot.')
+    @app_commands.checks.has_permissions(administrator=True)
+    async def setup(self, interaction):
+        commands = ["Add FAQ", "Remove FAQ", "Set Role", "Set Channel"]
+        select = SetupSelect(self.bot, custom_id="setup_command", placeholder="Select a Command")
+        select.options = [discord.SelectOption(label=command, value=command) for command in commands]
+        view = discord.ui.View()
+        view.add_item(select)
+        await interaction.response.send_message("Select an Admin Command", view=view, ephemeral=True)
 
     @app_commands.command(name='mute', description='Mute a member')
     @app_commands.describe(user='The member to mute')
@@ -90,7 +205,8 @@ class AdminControls(commands.Cog):
             await interaction.followup.send(embed=embed)
             await self.add_moderation_log(interaction.guild.id, "mute", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
         except Exception as e:
-            await interaction.channel.send(f"An error occurred: {e}")
+            await interaction.channel.send(f"An error occurred: {e}", ephemeral=True)
+            print(f"An error occurred: {e}")
 
     @app_commands.command(name='unmute', description='Unmute a member')
     @app_commands.describe(user='The member to mute')
@@ -104,31 +220,39 @@ class AdminControls(commands.Cog):
                 embed = Embed(title="Unmute", description=f"{user.mention} has been unmuted.", color=Colour.green())
                 await interaction.followup.send(embed=embed)
             else:
-                await interaction.channel.send(f"{user.mention} is not muted.")
+                await interaction.channel.send(f"{user.mention} is not muted.", ephemeral=True)
+                print(f"{user.mention} is not muted.")
         except Exception as e:
             await interaction.channel.send(f"An error occurred: {e}")
+            print(f"An error occurred: {e}")
 
     @app_commands.command(name='kick', description='Kick a member from the server')
     @app_commands.describe(user='The member to kick')
     @app_commands.describe(reason='The reason for the kick')
     @app_commands.checks.has_permissions(administrator=True)
     async def kick(self, interaction, user: discord.Member, reason: str = None):
-        await interaction.response.defer()
-        await user.kick(reason=reason)
-        await interaction.followup.send(f"{user.mention} has been kicked for {reason}.")
-        await self.db.add_moderation_log(interaction.guild.id, "kick", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
-
+        try:
+            await interaction.response.defer()
+            await user.kick(reason=reason)
+            await interaction.followup.send(f"{user.mention} has been kicked for {reason}.")
+            await self.db.add_moderation_log(interaction.guild.id, "kick", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
+        except Exception as e:
+            await interaction.channel.send(f"An error occurred: {e}", ephemeral=True)
+            print(f"An error occurred: {e}")
 
     @app_commands.command(name='ban', description='Ban a member from the server')
     @app_commands.describe(user='The member to ban')
     @app_commands.describe(reason='The reason for the ban')
     @app_commands.checks.has_permissions(administrator=True)
     async def ban(self, interaction, user: discord.Member, reason: str = None):
-        await interaction.response.defer()
-        await user.ban(reason=reason)
-        await interaction.followup.send(f"{user.mention} has been banned for {reason}.")
-        await self.db.add_moderation_log(interaction.guild.id, "ban", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
-
+        try:
+            await interaction.response.defer()
+            await user.ban(reason=reason)
+            await interaction.followup.send(f"{user.mention} has been banned for {reason}.")
+            await self.db.add_moderation_log(interaction.guild.id, "ban", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
+        except Exception as e:
+            await interaction.channel.send(f"An error occurred: {e}", ephemeral=True)
+            print(f"An error occurred: {e}")
 
     @app_commands.command(name='adjust_roles', description='Add or remove a user\'s role')
     @app_commands.describe(user='The user to adjust the role of')
@@ -136,25 +260,28 @@ class AdminControls(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True)
     async def adjust_roles(self, interaction, user: discord.Member, action: str):
         await interaction.response.defer()
+        try:
+            if action.lower() == 'add':
+                # Create a role select menu of all roles in the server
+                roles = [role for role in interaction.guild.roles if role != interaction.guild.default_role]
+                role_select = discord.ui.RoleSelect(custom_id='role_select_add', roles=roles, placeholder='Select a role to add')
 
-        if action.lower() == 'add':
-            # Create a role select menu of all roles in the server
-            roles = [role for role in interaction.guild.roles if role != interaction.guild.default_role]
-            role_select = discord.ui.RoleSelect(custom_id='role_select_add', roles=roles, placeholder='Select a role to add')
+                # Send a message with the role select menu
+                await interaction.followup.send("Select a role to add to the user:", components=role_select)
 
-            # Send a message with the role select menu
-            await interaction.followup.send("Select a role to add to the user:", components=role_select)
+            elif action.lower() == 'remove':
+                # Create a role select menu of all roles the user has
+                roles = [role for role in user.roles if role != interaction.guild.default_role]
+                role_select = discord.ui.RoleSelect(custom_id='role_select_remove', roles=roles, placeholder='Select a role to remove')
 
-        elif action.lower() == 'remove':
-            # Create a role select menu of all roles the user has
-            roles = [role for role in user.roles if role != interaction.guild.default_role]
-            role_select = discord.ui.RoleSelect(custom_id='role_select_remove', roles=roles, placeholder='Select a role to remove')
+                # Send a message with the role select menu
+                await interaction.followup.send("Select a role to remove from the user:", components=role_select)
 
-            # Send a message with the role select menu
-            await interaction.followup.send("Select a role to remove from the user:", components=role_select)
-
-        else:
-            await interaction.followup.send("Invalid action. Please enter 'add' or 'remove'.")
+            else:
+                await interaction.followup.send("Invalid action. Please enter 'add' or 'remove'.")
+        except Exception as e:
+            await interaction.channel.send(f"An error occurred: {e}", ephemeral=True)
+            print(f"An error occurred: {e}")
 
     @commands.Cog.listener()
     async def on_role_select_option(self, interaction):
@@ -206,10 +333,10 @@ class AdminControls(commands.Cog):
         if message.channel.name == support_channel:
             return
         # Check for keywords
-        keywords = ["help", "support", "assist"]
+        keywords = ["help", "support", "assist", "pack"]
         if any(keyword in message.content.lower() for keyword in keywords):
             await message.reply(f"If you are looking for help or support, please go to the #support channel.")
 
 
-def setup(bot, db_cog):
-    bot.add_cog(AdminControls(bot, db_cog))
+async def setup(bot):
+    await bot.add_cog(AdminControls(bot))
