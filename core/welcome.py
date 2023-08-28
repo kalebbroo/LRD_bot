@@ -8,7 +8,7 @@ class RoleButton(Button):
     cooldown_users = {}
 
     def __init__(self, label, role_id, emoji=None):
-        super().__init__(label=label, custom_id=str(role_id), emoji=emoji)
+        super().__init__(label=label, custom_id=str(role_id), emoji=emoji, timeout=None)
         self.role_id = role_id
 
     async def callback(self, interaction):
@@ -57,29 +57,30 @@ class WelcomePageModal(Modal):
 
     async def on_submit(self, interaction):
         welcome_msg = self.message_input.value
-        welcome_channel = self.channel_name.value
-        if not welcome_channel:
+        welcome_channel_name = self.channel_name.value
+
+        channel = discord.utils.get(interaction.guild.text_channels, name=welcome_channel_name)
+        if not channel:
             await interaction.response.send_message("Please enter a valid channel name!", ephemeral=True)
-            print("No valid channel name entered")
             return
-        
+
         database_cog = self.bot.get_cog("Database")
-        view = RulesView(database_cog, self.interaction.guild.id, self.role_mapping)
-        channel = discord.utils.get(self.interaction.guild.text_channels, name=welcome_channel)
-        if channel:
-            await channel.send(content=welcome_msg, view=view)
-            await interaction.response.send_message("Welcome page created successfully!", ephemeral=True)
-        else:
-            await interaction.response.send_message("Channel not found!", ephemeral=True)
-            return
+        await database_cog.set_channel_mapping(interaction.guild.id, welcome_channel_name, channel.name, channel.id, welcome_msg)
+        
+        view = RulesView(database_cog, interaction.guild.id, self.role_mapping)
+        await channel.send(content=welcome_msg, view=view)
+        await interaction.response.send_message("Welcome page created successfully!", ephemeral=True)
+
 
 class RulesView(View):
     def __init__(self, database_cog, guild_id, role_mapping):
         super().__init__(timeout=None)
         self.database = database_cog
-        
-        for role_name, role_info in role_mapping.items():
-            self.add_item(RoleButton(label=role_name, role_id=role_info['id'], emoji=role_info['emoji']))
+
+        # Update to use the new role_mapping structure
+        for button_name, role_info in role_mapping.items():
+            self.add_item(RoleButton(label=button_name, role_id=role_info['role_id'], emoji=role_info['emoji']))
+
 
 class WelcomeNewUser(commands.Cog):
     def __init__(self, bot):
@@ -91,46 +92,23 @@ class WelcomeNewUser(commands.Cog):
         msg = f"Welcome {member.mention}! Please head over to {rules_channel.mention} to get your roles."
         await member.send(msg)  # Send a DM to the new member
 
-    @app_commands.command(name="create_welcome_page", description="Create a welcome page for new members.")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def create_welcome_page(self, interaction):
-        role_mapping, unmapped_roles = await self.get_role_mapping(interaction.guild.id)
-        if unmapped_roles:
-            await interaction.response.defer()
-            unmapped_str = ', '.join(unmapped_roles)
-            await interaction.followup.send(
-                f"The following roles are not properly mapped in the database: {unmapped_str}. Please use the /setup command to map them before continuing.",
-                ephemeral=True)
-            return
-        
-        view = WelcomePageModal(self.bot, interaction, role_mapping)
-        await interaction.response.send_modal(view)
-
     async def get_role_mapping(self, guild_id):
-        # Role names that we expect to find in the database
-        expected_roles = [
-            "Read the Rules",
-            "Patreon Announcements",
-            "Announcements",
-            "Behind the Scenes",
-            "Showcase"
-        ]
-
-        # Fetch mappings from the database
         db_cog = self.bot.get_cog("Database")
-        unmapped_roles = []
+        
+        button_names = await db_cog.get_button_names(guild_id)
+        unmapped_buttons = []
         role_mapping = {}
 
-        for role_name in expected_roles:
-            role_id = await db_cog.get_server_role(guild_id, role_name)
-            if role_id:
-                print(f"Found mapping for {role_name}")
-                role_mapping[role_name] = {'id': role_id, 'emoji': "📜"}
+        for btn_name in button_names:
+            role_info = await db_cog.get_server_role(guild_id, btn_name)
+            if role_info:
+                print(f"Found mapping for {btn_name}")
+                role_mapping[btn_name] = {'role_id': role_info['role_id'], 'emoji': role_info['emoji']}
             else:
-                print(f"Did not find mapping for {role_name}")
-                unmapped_roles.append(role_name)
+                print(f"Did not find mapping for {btn_name}")
+                unmapped_buttons.append(btn_name)
 
-        return role_mapping, unmapped_roles
+        return role_mapping, unmapped_buttons
 
 async def setup(bot):
     await bot.add_cog(WelcomeNewUser(bot))

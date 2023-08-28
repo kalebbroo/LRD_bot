@@ -1,41 +1,66 @@
 # LittleRoomDev Bot
 
-LittleRoomDev Bot (or LRD Bot) is a Discord bot tailored for the LRD Discord admins. It's built using Python and the discord.py library and utilizes SQLite for data storage.
+LittleRoomDev Bot (LRD Bot) is a custom Discord bot tailored for the LRD Discord server. Powered by Python and the discord.py library, the bot also employs SQLite for data storage, ensuring a seamless user experience.
 
 ## Features
 
-- **FAQ System**: When an admin or a user replies with `FAQ #<number>`, the bot fetches the FAQ content from the database and replies to the user mentioning them with the content.
+- **FAQ System**: 
+  - A dynamic FAQ system that can be managed by admins.
+  - When a user or admin references an FAQ by its number (`FAQ #<number>`), the bot retrieves the content from the database and provides a detailed response.
   
-- **Admin Controls**: Admins can easily manage various bot settings through the `/setup` slash command, which includes:
-  - Adding or removing FAQs.
-  - Setting roles with admin permissions for the bot.
-  - Setting channels for specific functionalities, including the showcase channel.
+- **Admin Controls**: 
+  - The `/setup` slash command offers a robust interface for admins to configure various bot functionalities, such as:
+    - **Add FAQ**: Easily define and incorporate a new FAQ entry.
+    - **Remove FAQ**: Swiftly delete any existing FAQ.
+    - **Set Role**: Integrate pre-defined roles with actual roles in the server.
+    - **Set Channel**: Assign specific bot functionalities to designated channels.
+    
+- **Showcase Channel**: 
+  - A unique space for users to display their work.
+  - The bot ensures that each user can only create one post per day to maintain a clutter-free environment.
+  - Every showcase post spawns a dedicated thread for discussions, enabling constructive feedback and conversations.
 
-- **Showcase Channel**: Users can showcase their work in the showcase channel, where the bot ensures that each user can only make one post per day. A forum (thread) is created under each post for discussions.
+- **Welcoming New Users**: 
+  - Every new member receives a direct message detailing the server rules.
+  - The rules page is equipped with interactive buttons, permitting users to select specific roles such as "I have read the rules", "Patreon Announcements", and more.
 
-- **Welcome New Users**: When a new user joins the server, they receive a private message with the server rules. Additionally, on the rules page, buttons allow users to choose specific roles like "I have read the rules", "Patreon Announcements", etc.
+- **Mute System**: 
+  - Admins can mute disruptive users, preventing them from speaking or sending messages.
+  - The bot ensures that the "Muted" role permissions are applied to every channel, including those created after the bot starts.
+
+- **Listeners**: 
+  - **Support Channel Listener**: When certain keywords are detected in messages outside the support channel, the bot gently redirects users to the correct channel.
+  - **New Channel Listener**: When a new channel is created, the bot ensures the "Muted" role has its permissions set correctly for the new channel.
+
+- **Database Storage**: 
+  - The SQLite database stores various data, such as:
+    - FAQs and their associated numbers.
+    - Role mappings.
+    - User posts in the showcase channel to enforce the one post per day rule.
+    - Moderation logs to keep track of user actions like mutes, bans, etc.
 
 ## Installation
 
 1. Clone this repository.
-2. Install the required Python packages: `pip install -r requirements.txt`
-3. Set up the SQLite database, ensuring the `database` directory exists.
-4. Update the `.env` file with the necessary configurations, including your bot's token.
-5. Build the Docker image: `docker build -t lrd_bot:latest .`
-6. Run the Docker container: `docker run -v %cd%/database:/app/database lrd_bot:latest`
+2. Install the required Python packages using: `pip install -r requirements.txt`
+3. Ensure the `database` directory exists for SQLite storage.
+4. Update the `.env` file with the necessary configurations, particularly your bot's token.
+5. Build the Docker image with: `docker build -t lrd_bot:latest .`
+6. Launch the Docker container using: `docker run -v %cd%/database:/app/database lrd_bot:latest`
 
 ## Usage
 
-Once the bot is running and has been invited to your server, you can use the slash commands. For instance, the `/setup` command provides an interactive way for admins to configure the bot. The bot's features like the FAQ system, Showcase Channel moderation, and welcoming new users are automated.
+With the bot active and integrated into your server, you can harness the power of slash commands. For example, the `/setup` command grants admins an interactive interface to calibrate the bot. Automated features, such as the FAQ system, Showcase Channel moderation, and user welcome sequences, require no manual intervention.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request.
+We appreciate contributions! If you have improvements or bug fixes, please submit a pull request.
 
 ## Discord
 
-[Join our Discord server](https://discord.gg/CmrFZgZVEE)
+Wish to discuss more? [Join our Discord server](https://discord.gg/CmrFZgZVEE).
 
 ## License
 
-This project is licensed under the MIT License.
+LRD Bot is licensed under the MIT License.
+

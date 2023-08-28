@@ -49,23 +49,20 @@ class Database(commands.Cog):
             # Setup table for server roles
             await self.c.execute(f"""
                 CREATE TABLE IF NOT EXISTS serverroles_{guild_id}(
-                    predefined_name TEXT PRIMARY KEY,
+                    button_name TEXT PRIMARY KEY,
                     role_name TEXT,
-                    role_id INTEGER
+                    role_id INTEGER,
+                    emoji TEXT
                 )
             """)
-            
-            # Insert default role names into the table
-            role_names = [
-                "Read the Rules",
-                "Patreon Announcements",
-                "Announcements",
-                "Behind the Scenes",
-                "Showcase"
-            ]
-            for name in role_names:
-                await self.c.execute(f"INSERT OR IGNORE INTO serverroles_{guild_id}(predefined_name) VALUES (?)", (name,))
-            
+            await self.c.execute(f"""
+                CREATE TABLE IF NOT EXISTS channelmapping_{guild_id}(
+                    channel_display_name TEXT PRIMARY KEY,
+                    channel_name TEXT,
+                    channel_id INTEGER,
+                    message TEXT
+                )
+            """)
             # Setup table for votes
             await self.c.execute(f"""
                 CREATE TABLE IF NOT EXISTS votes(
@@ -110,14 +107,13 @@ class Database(commands.Cog):
     async def close_db(self):
         await self.conn.close()
 
-    async def set_server_role(self, guild_id, predefined_name, role_name, role_id):
+    async def set_server_role(self, guild_id, button_name, role_name, role_id, emoji, connection, cursor):
         try:
-            await self.c.execute(f"""
-                INSERT OR REPLACE INTO serverroles_{guild_id}(predefined_name, role_name, role_id)
-                VALUES (?, ?, ?)
-            """, (predefined_name, role_name, role_id))
-            await self.conn.commit()
-            print(f"Linked role: {role_name} with ID: {role_id} To predefined role: {predefined_name}")
+            await cursor.execute(f"""
+                INSERT OR REPLACE INTO serverroles_{guild_id}(button_name, role_name, role_id, emoji)
+                VALUES (?, ?, ?, ?)
+            """, (button_name, role_name, role_id, emoji))
+            await connection.commit()
         except Exception as e:
             print(f"Error setting server role: {e}")
 
@@ -126,23 +122,24 @@ class Database(commands.Cog):
         data = await self.c.fetchall()
         return data
     
-    async def get_server_role(self, guild_id, predefined_name):
-        await self.c.execute(f"SELECT role_id FROM serverroles_{guild_id} WHERE predefined_name = ?", (predefined_name,))
+    async def get_server_role(self, guild_id, button_name):
+        await self.c.execute(f"SELECT role_id, emoji FROM serverroles_{guild_id} WHERE button_name = ?", (button_name,))
         data = await self.c.fetchone()
         
         if data:
-            return data[0]  # Return the role_id
+            return {'role_id': data[0], 'emoji': data[1]}
         return None
 
-    async def get_predefined_role_names(self, guild_id):
-        """Fetch predefined role names from the serverroles table for a specific guild."""
-        await self.c.execute(f"SELECT predefined_name FROM serverroles_{guild_id}")
-        data = await self.c.fetchall()
 
-        if data:
-            # Return a list of role names
-            return [entry[0] for entry in data]
-        return []
+    async def set_channel_mapping(self, guild_id, channel_display_name, channel_name, channel_id, message, connection, cursor):
+        try:
+            await cursor.execute(f"""
+                INSERT OR REPLACE INTO channelmapping_{guild_id}(channel_display_name, channel_name, channel_id, message)
+                VALUES (?, ?, ?, ?)
+            """, (channel_display_name, channel_name, channel_id, message))
+            await connection.commit()
+        except Exception as e:
+            print(f"Error setting channel mapping: {e}")
 
 
     @commands.Cog.listener()
