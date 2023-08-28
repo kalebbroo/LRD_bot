@@ -62,5 +62,4 @@ Wish to discuss more? [Join our Discord server](https://discord.gg/CmrFZgZVEE).
 
 ## License
 
-LRD Bot is licensed under the MIT License.
-
+This project is licensed under the MIT License.
