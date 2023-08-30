@@ -8,7 +8,7 @@ class RoleButton(Button):
     cooldown_users = {}
 
     def __init__(self, label, role_id, emoji=None):
-        super().__init__(label=label, custom_id=str(role_id), emoji=emoji, timeout=None)
+        super().__init__(label=label, custom_id=str(role_id), emoji=emoji)
         self.role_id = role_id
 
     async def callback(self, interaction):
@@ -66,6 +66,8 @@ class WelcomePageModal(Modal):
 
         database_cog = self.bot.get_cog("Database")
         await database_cog.set_channel_mapping(interaction.guild.id, welcome_channel_name, channel.name, channel.id, welcome_msg)
+
+        print(self.role_mapping)
         
         view = RulesView(database_cog, interaction.guild.id, self.role_mapping)
         await channel.send(content=welcome_msg, view=view)
@@ -79,7 +81,9 @@ class RulesView(View):
 
         # Update to use the new role_mapping structure
         for button_name, role_info in role_mapping.items():
+            print(f"Adding button: {button_name}, Role ID: {role_info['role_id']}, Emoji: {role_info['emoji']}")
             self.add_item(RoleButton(label=button_name, role_id=role_info['role_id'], emoji=role_info['emoji']))
+
 
 
 class WelcomeNewUser(commands.Cog):
@@ -88,9 +92,50 @@ class WelcomeNewUser(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        rules_channel = discord.utils.get(member.guild.text_channels, name="rules")
-        msg = f"Welcome {member.mention}! Please head over to {rules_channel.mention} to get your roles."
-        await member.send(msg)  # Send a DM to the new member
+        db_cog = self.bot.get_cog("Database")
+        # Get the channel name set in the database
+        welcome_channel_name = await db_cog.get_welcome_channel(member.guild.id)
+        # If there's no channel set, enter the default fallback channel name. This can be changed to whatever you want.
+        if not welcome_channel_name:
+            welcome_channel_name = "rules"
+
+        welcome_channel = discord.utils.get(member.guild.text_channels, name=welcome_channel_name)
+        
+        if not welcome_channel:
+            print(f"No channel named {welcome_channel_name} found in {member.guild.name}")
+            return
+        # Get the default system channel for the guild
+        general_channel = member.guild.system_channel
+        if general_channel:
+            await general_channel.send(f"Welcome {member.mention}! Please head over to {welcome_channel.mention} to get your roles.")
+        else:
+            await member.send(f"Welcome to {member.guild.name}! Please check out {welcome_channel.mention} to get your roles.")
+
+    async def refresh_welcome_message(self, guild_id):
+        db_cog = self.bot.get_cog("Database")
+        # Get the channel name you've set in the database
+        welcome_channel_name = await db_cog.get_welcome_channel(guild_id)
+        welcome_msg = await db_cog.get_welcome_message(guild_id)
+        # Fetch the guild
+        guild = self.bot.get_guild(guild_id)
+        # If there's no channel set, you can default to a channel named "rules"
+        if not welcome_channel_name:
+            welcome_channel_name = "rules"
+        welcome_channel = discord.utils.get(guild.text_channels, name=welcome_channel_name)
+        if not welcome_channel:
+            print(f"No channel named {welcome_channel_name} found in {guild.name}")
+            return
+        # Delete the last message in the welcome channel
+        try:
+            last_message = await welcome_channel.fetch_message(welcome_channel.last_message_id)
+            if last_message.author == self.bot.user:  # Ensure the last message was sent by the bot
+                await last_message.delete()
+        except Exception as e:
+            print(f"Error deleting the last message: {e}")
+        # Repost the welcome message with the buttons
+        role_mapping, _ = await self.get_role_mapping(guild_id)
+        view = RulesView(db_cog, guild_id, role_mapping)
+        await welcome_channel.send(content=welcome_msg, view=view)
 
     async def get_role_mapping(self, guild_id):
         db_cog = self.bot.get_cog("Database")

@@ -107,13 +107,13 @@ class Database(commands.Cog):
     async def close_db(self):
         await self.conn.close()
 
-    async def set_server_role(self, guild_id, button_name, role_name, role_id, emoji, connection, cursor):
+    async def set_server_role(self, guild_id, button_name, role_name, role_id, emoji):
         try:
-            await cursor.execute(f"""
+            await self.c.execute(f"""
                 INSERT OR REPLACE INTO serverroles_{guild_id}(button_name, role_name, role_id, emoji)
                 VALUES (?, ?, ?, ?)
             """, (button_name, role_name, role_id, emoji))
-            await connection.commit()
+            await self.conn.commit()
         except Exception as e:
             print(f"Error setting server role: {e}")
 
@@ -130,17 +130,45 @@ class Database(commands.Cog):
             return {'role_id': data[0], 'emoji': data[1]}
         return None
 
-
-    async def set_channel_mapping(self, guild_id, channel_display_name, channel_name, channel_id, message, connection, cursor):
+    async def set_channel_mapping(self, guild_id, channel_display_name, channel_name, channel_id, message):
         try:
-            await cursor.execute(f"""
+            await self.c.execute(f"""
                 INSERT OR REPLACE INTO channelmapping_{guild_id}(channel_display_name, channel_name, channel_id, message)
                 VALUES (?, ?, ?, ?)
             """, (channel_display_name, channel_name, channel_id, message))
-            await connection.commit()
+            await self.conn.commit()
         except Exception as e:
             print(f"Error setting channel mapping: {e}")
 
+    async def get_button_names(self, guild_id):
+        await self.c.execute(f"SELECT button_name FROM serverroles_{guild_id}")
+        data = await self.c.fetchall()
+        return [item[0] for item in data]
+    
+    async def set_server_channel(self, interaction, guild_id, display_name, channel_name, channel_id):
+        try:
+            await self.c.execute(f"""
+                INSERT OR REPLACE INTO channelmapping_{guild_id}(channel_display_name, channel_name, channel_id)
+                VALUES (?, ?, ?)
+            """, (display_name, channel_name, channel_id))
+            await self.conn.commit()
+        except Exception as e:
+            print(f"Error setting server channel: {e}")
+
+    async def get_welcome_channel(self, guild_id):
+        query = f"SELECT channel_name FROM channelmapping_{guild_id} WHERE message IS NOT NULL LIMIT 1"
+        await self.c.execute(query)
+        channel_name = await self.c.fetchone()
+        return channel_name[0] if channel_name else None
+        
+    async def get_welcome_message(self, guild_id):
+        """
+        Retrieve the welcome message associated with a specific guild.
+        """
+        query = f"SELECT message FROM channelmapping_{guild_id} WHERE message IS NOT NULL LIMIT 1"
+        await self.c.execute(query)
+        message_row = await self.c.fetchone()
+        return message_row[0] if message_row else None
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):

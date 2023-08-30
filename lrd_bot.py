@@ -26,6 +26,9 @@ async def on_ready():
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=f"{bot.command_prefix}help"))
     print(f"synced {len(fmt)} commands")
     print(f"Loaded: {len(bot.cogs)} core files")
+    welcome_cog = bot.get_cog("WelcomeNewUser")
+    for guild in bot.guilds:
+        await welcome_cog.refresh_welcome_message(guild.id)
 
 
 @bot.event
