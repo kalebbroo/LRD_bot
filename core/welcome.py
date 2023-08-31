@@ -85,7 +85,6 @@ class RulesView(View):
             self.add_item(RoleButton(label=button_name, role_id=role_info['role_id'], emoji=role_info['emoji']))
 
 
-
 class WelcomeNewUser(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -111,20 +110,26 @@ class WelcomeNewUser(commands.Cog):
         else:
             await member.send(f"Welcome to {member.guild.name}! Please check out {welcome_channel.mention} to get your roles.")
 
+
     async def refresh_welcome_message(self, guild_id):
         db_cog = self.bot.get_cog("Database")
-        # Get the channel name you've set in the database
         welcome_channel_name = await db_cog.get_welcome_channel(guild_id)
         welcome_msg = await db_cog.get_welcome_message(guild_id)
-        # Fetch the guild
         guild = self.bot.get_guild(guild_id)
-        # If there's no channel set, you can default to a channel named "rules"
+
         if not welcome_channel_name:
-            welcome_channel_name = "rules"
+            print(f"No welcome channel set for guild {guild.name}. Skipping welcome message refresh.")
+            return
+
+        if not welcome_msg or welcome_msg.strip() == "":
+            print(f"No welcome message set for guild {guild.name}. Skipping welcome message send.")
+            return
+
         welcome_channel = discord.utils.get(guild.text_channels, name=welcome_channel_name)
         if not welcome_channel:
             print(f"No channel named {welcome_channel_name} found in {guild.name}")
             return
+
         # Delete the last message in the welcome channel
         try:
             last_message = await welcome_channel.fetch_message(welcome_channel.last_message_id)
@@ -132,10 +137,12 @@ class WelcomeNewUser(commands.Cog):
                 await last_message.delete()
         except Exception as e:
             print(f"Error deleting the last message: {e}")
+
         # Repost the welcome message with the buttons
         role_mapping, _ = await self.get_role_mapping(guild_id)
         view = RulesView(db_cog, guild_id, role_mapping)
         await welcome_channel.send(content=welcome_msg, view=view)
+
 
     async def get_role_mapping(self, guild_id):
         db_cog = self.bot.get_cog("Database")

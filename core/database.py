@@ -55,6 +55,7 @@ class Database(commands.Cog):
                     emoji TEXT
                 )
             """)
+            # Setup table for channels
             await self.c.execute(f"""
                 CREATE TABLE IF NOT EXISTS channelmapping_{guild_id}(
                     channel_display_name TEXT PRIMARY KEY,
@@ -169,6 +170,24 @@ class Database(commands.Cog):
         await self.c.execute(query)
         message_row = await self.c.fetchone()
         return message_row[0] if message_row else None
+    
+    async def add_moderation_log(self, guild_id, action, user_id, moderator_id, reason, timestamp):
+        """Add a moderation action to the log."""
+        await self.bot.db.c.execute(f"""
+            INSERT INTO moderation_logs_{guild_id}(action, user_id, moderator_id, reason, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+        """, (action, user_id, moderator_id, reason, timestamp))
+        await self.bot.db.conn.commit()
+
+    async def get_showcase_channel(self, guild_id, showcase_display_name="showcase"):
+        """
+        Retrieve the showcase channel ID associated with a specific guild.
+        """
+        query = f"SELECT channel_id FROM channelmapping_{guild_id} WHERE channel_display_name = ? LIMIT 1"
+        await self.c.execute(query, (showcase_display_name,))
+        channel_row = await self.c.fetchone()
+        return channel_row[0] if channel_row else None
+
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
