@@ -11,6 +11,7 @@ class SetupSelect(Select):
 
     async def callback(self, interaction):
         selection = self.values[0]
+        embed_cog = self.bot.get_cog("CreateEmbed")
 
         match selection:
             case "Add FAQ":
@@ -18,14 +19,11 @@ class SetupSelect(Select):
                 await interaction.response.send_modal(view)
             
             case "Remove FAQ":
-                # Fetch all FAQs from database
                 database_cog = self.bot.get_cog("Database")
                 all_faqs = await database_cog.get_all_faqs(interaction.guild.id)
-
                 faq_msg = "\n".join([f"#{faq[0]} - {faq[1]}" for faq in all_faqs])
-                await interaction.response.send_message(f"FAQs:\n{faq_msg}", ephemeral=True)
-                
-                # Create a select menu with all FAQ numbers
+                embed = await embed_cog.create_embed(title="FAQs", description=faq_msg, color=Colour.blue())
+                await interaction.response.send_message(embed=embed, ephemeral=True)
                 select = FAQRemoveSelect(self.bot, custom_id="faq_remove_selection", placeholder="Select a FAQ to remove")
                 select.options = [discord.SelectOption(label=str(faq[0]), value=str(faq[0])) for faq in all_faqs]
                 view = discord.ui.View()
@@ -37,7 +35,7 @@ class SetupSelect(Select):
                 await interaction.response.send_modal(modal)
 
             case "Map Channel Names to Database":
-                modal = ChannelConfigModal(self.bot)
+                modal = ChannelConfigModal(self.bot, guild=interaction.guild)
                 await interaction.response.send_modal(modal)
 
             case "Welcome Page Setup":
@@ -48,7 +46,9 @@ class SetupSelect(Select):
 
             # TODO: Add other admin commands
             case _:
-                await interaction.response.send_message("Invalid selection.", ephemeral=True)
+                embed = await embed_cog.create_embed(title="Error", description="Invalid selection.", color=Colour.red())
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 class FAQRemoveSelect(Select):
     def __init__(self, bot, *args, **kwargs):
@@ -93,15 +93,16 @@ class AddFAQModal(Modal):
     async def on_submit(self, interaction):
         number = int(self.number_input.value)
         content = self.content_input.value
+        embed_cog = self.bot.get_cog("CreateEmbed")
         try:
             database_cog = self.bot.get_cog("Database")
             await database_cog.add_faq(number, content, interaction.guild.id)
 
-            await interaction.response.send_message(f"FAQ #{number} has been added successfully.", ephemeral=True)
-            print(f"FAQ #{number} has been added successfully.")
+            embed = await embed_cog.create_embed(title="Success", description=f"FAQ #{number} has been added successfully.", color=Colour.green())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"Error adding FAQ: {e}", ephemeral=True)
-            print(f"Error adding FAQ: {e}")
+            embed = await embed_cog.create_embed(title="Error", description=f"Error adding FAQ: {e}", color=Colour.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class RoleMappingModal(Modal):
@@ -109,7 +110,7 @@ class RoleMappingModal(Modal):
         super().__init__(title="Map Roles and Create Buttons")
         self.bot = bot
         
-        role_names, role_ids = self.get_role_names_and_ids(guild)
+        role_data = self.get_roles_formatted(guild)
         
         # Creating input fields for role and button mapping
         self.button_name_input = TextInput(label='Enter the button display name',
@@ -118,18 +119,12 @@ class RoleMappingModal(Modal):
                                            min_length=1,
                                            max_length=100,
                                            required=True)
-        self.role_name_input = TextInput(label='Enter the server role name',
+        self.role_name_input = TextInput(label='Enter 1 role name followed by ID',
                                          style=discord.TextStyle.long,
-                                         default=f"Example roles: {role_names}",
+                                         default=f"Choose 1 delete all others:\n {role_data}",
                                          min_length=1,
                                          max_length=4000,
                                          required=True)
-        self.role_id_input = TextInput(label='Enter the server role ID',
-                                       style=discord.TextStyle.long,
-                                       default=f"Example: {role_ids}",
-                                       min_length=1,
-                                       max_length=4000,
-                                       required=True)
         self.emoji_input = TextInput(label='Enter the emoji for the button',
                                      style=discord.TextStyle.short,
                                      placeholder='Example: 🌟',
@@ -139,29 +134,40 @@ class RoleMappingModal(Modal):
         
         self.add_item(self.button_name_input)
         self.add_item(self.role_name_input)
-        self.add_item(self.role_id_input)
         self.add_item(self.emoji_input)
 
     @staticmethod
-    def get_role_names_and_ids(guild):
-        role_names = [role.name for role in guild.roles]
-        role_ids = [str(role.id) for role in guild.roles]
-        return role_names, role_ids
+    def get_roles_formatted(guild):
+        roles_formatted = [f"{role.name}:{role.id}" for role in guild.roles]
+        return ', '.join(roles_formatted)
 
     async def on_submit(self, interaction):
         button_name = self.button_name_input.value
-        role_name = self.role_name_input.value
-        role_id = int(self.role_id_input.value)
+        role_input = self.role_name_input.value.split(":")
+        if len(role_input) != 2:
+            embed = await embed_cog.create_embed(title="Error", description="Invalid role format. Please use 'rolename:roleid'", color=Colour.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        role_name, role_id_str = role_input
+        try:
+            role_id = int(role_id_str)
+        except ValueError:
+            embed = await embed_cog.create_embed(title="Error", description="Invalid role ID format. Ensure it's a number.", color=Colour.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
         emoji = self.emoji_input.value
-        
+        embed_cog = self.bot.get_cog("CreateEmbed")
         try:
             database_cog = self.bot.get_cog("Database")
             await database_cog.set_server_role(interaction.guild.id, button_name, role_name, role_id, emoji)
-            await interaction.response.send_message(f"Role and button mapping for '{button_name}' added successfully!", ephemeral=True)
-            print(f"Role and button mapping for '{button_name}' added successfully!")
+            
+            embed = await embed_cog.create_embed(title="Success", description=f"Role and button mapping for '{button_name}' added successfully!", color=Colour.green())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"Error adding role and button mapping: {e}", ephemeral=True)
-            print(f"Error adding role and button mapping: {e}")
+            embed = await embed_cog.create_embed(title="Error", description=f"Error adding role and button mapping: {e}", color=Colour.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class ActualRoleSelect(Select):
@@ -189,43 +195,49 @@ class ActualRoleSelect(Select):
 
 
 class ChannelConfigModal(Modal):
-    def __init__(self, bot):
+    def __init__(self, bot, guild):
         super().__init__(title="Channel Configuration")
         self.bot = bot
         
         self.display_name_input = TextInput(label='Enter Display Name',
                                             style=discord.TextStyle.short,
-                                            placeholder='Enter a name you want to call this channel',
+                                            placeholder=f'Display name you want to call this channel\n\nExample: Welcome Channel',
                                             min_length=1,
                                             max_length=45,
                                             required=True)
         
         self.channel_name_and_id_input = TextInput(label='Enter Channel Name and ID',
-                                                   style=discord.TextStyle.long,
-                                                   placeholder=f'Format: channel_name:channel_id. Example: general:1234567890',
-                                                   min_length=1,
-                                                   max_length=4000,
-                                                   required=True)
+                                                    style=discord.TextStyle.long,
+                                                    default=f"Choose 1 delete all others\n\n{self.get_channels_formatted(guild)}",
+                                                    min_length=1,
+                                                    max_length=4000,
+                                                    required=True)
         
         self.add_item(self.display_name_input)
         self.add_item(self.channel_name_and_id_input)
 
+    @staticmethod
+    def get_channels_formatted(guild):
+        channels_formatted = [f"{channel.name}:{channel.id}" for channel in guild.channels if isinstance(channel, discord.TextChannel)]
+        return ', '.join(channels_formatted)
+
     async def on_submit(self, interaction):
         display_name = self.display_name_input.value
         channel_data = self.channel_name_and_id_input.value.split(":")
+        embed_cog = self.bot.get_cog("CreateEmbed")
         if len(channel_data) != 2:
-            await interaction.response.send_message("Error: Invalid format for Channel Name and ID. Please use format: channel_name:channel_id", ephemeral=True)
+            embed = await embed_cog.create_embed(title="Error", description="Invalid format for Channel Name and ID. Please use format: channel_name:channel_id", color=Colour.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
-
         channel_name, channel_id = channel_data[0], channel_data[1]
         try:
-            # Using the database logic to add the channel data
             database_cog = self.bot.get_cog("Database")
             await database_cog.set_server_channel(interaction, interaction.guild.id, display_name, channel_name, int(channel_id))
-            await interaction.response.send_message(f"Channel '{display_name}' set successfully.", ephemeral=True)
+            embed = await embed_cog.create_embed(title="Success", description=f"Channel '{display_name}' set successfully.", color=Colour.green())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"Error setting channel: {e}", ephemeral=True)
-            print(f"Error setting channel: {e}")
+            embed = await embed_cog.create_embed(title="Error", description=f"Error setting channel: {e}", color=Colour.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class SetupCommand(commands.Cog):
@@ -236,12 +248,19 @@ class SetupCommand(commands.Cog):
     @app_commands.command(name='setup', description='Press ENTER to choose a sub-command.')
     @app_commands.checks.has_permissions(administrator=True)
     async def setup(self, interaction):
-        commands = ["Add FAQ", "Remove FAQ", "Map Roles and Create Buttons", "Map Channel Names to Database", "Welcome Page Setup"]
+        embed_cog = self.bot.get_cog("CreateEmbed")
+        # Create the embed
+        embed = await embed_cog.create_embed(title="Setup Command",
+                                             description="Select a Setup Sub-Command below:",
+                                             color=discord.Colour.blue())
+        commands = ["Map Roles and Create Buttons", "Map Channel Names to Database", "Welcome Page Setup", "Add FAQ", "Remove FAQ"]
         select = SetupSelect(self.bot, custom_id="setup_command", placeholder="Select a Command")
         select.options = [discord.SelectOption(label=command, value=command) for command in commands]
         view = discord.ui.View()
         view.add_item(select)
-        await interaction.response.send_message("Select a Setup Sub-Command", view=view, ephemeral=True)
+        # Send the embed and the select menu view in the same message
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(SetupCommand(bot))

@@ -9,6 +9,7 @@ class AdminControls(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db = self.bot.get_cog("Database")
+        self.embed_cog = bot.get_cog("CreateEmbed")
 
     async def cog_check(self, ctx):
         """Check if the command invoker has admin permissions."""
@@ -18,7 +19,6 @@ class AdminControls(commands.Cog):
         """Check if a member is new to the guild."""
         naive_utc_now = datetime.utcnow().replace(tzinfo=None)
         return naive_utc_now - member.joined_at.replace(tzinfo=None) < timedelta(days=7)
-
 
 
     @app_commands.command(name='mute', description='Mute a member')
@@ -33,14 +33,23 @@ class AdminControls(commands.Cog):
                 for channel in interaction.guild.channels:
                     await channel.set_permissions(role, speak=False, send_messages=False)
             await user.add_roles(role, reason=reason)
-            embed = Embed(title="Mute", description=f"{user.mention} has been muted.", color=Colour.red())
-            if reason:
-                embed.add_field(name="Reason", value=reason)
+            embed_data = {
+                "title": "Mute",
+                "description": f"{user.mention} has been muted.",
+                "color": Colour.red(),
+                "fields": [{"name": "Reason", "value": reason}] if reason else []
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
             await interaction.followup.send(embed=embed)
-            await self.add_moderation_log(interaction.guild.id, "mute", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
+
         except Exception as e:
-            await interaction.channel.send(f"An error occurred: {e}", ephemeral=True)
-            print(f"An error occurred: {e}")
+            embed_data = {
+                "title": "Error",
+                "description": f"An error occurred: {e}",
+                "color": Colour.red()
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
     @app_commands.command(name='unmute', description='Unmute a member')
@@ -51,26 +60,49 @@ class AdminControls(commands.Cog):
             role = get(interaction.guild.roles, name="Muted")
             if role in user.roles:
                 await user.remove_roles(role)
-                embed = Embed(title="Unmute", description=f"{user.mention} has been unmuted.", color=Colour.green())
-                await interaction.followup.send(embed=embed)
-            else:
-                await interaction.channel.send(f"{user.mention} is not muted.", ephemeral=True)
+                embed_data = {
+                "title": "Unmute",
+                "description": f"{user.mention} has been unmuted.",
+                "color": Colour.green()
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
+            await interaction.followup.send(embed=embed)
+
         except Exception as e:
-            await interaction.channel.send(f"An error occurred: {e}", ephemeral=True)
-            print(f"An error occurred: {e}")
+            embed_data = {
+                "title": "Error",
+                "description": f"An error occurred: {e}",
+                "color": Colour.red()
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
     @app_commands.command(name='kick', description='Kick a member from the server')
     @app_commands.describe(user='The member to kick', reason='The reason for the kick')
     async def kick(self, interaction, user: discord.Member, reason: str):
         """Kick a member from the server."""
+        await interaction.response.defer()
         try:
-            await interaction.response.defer()
             await user.kick(reason=reason)
-            await interaction.followup.send(f"{user.mention} has been kicked for {reason}.")
+            
+            embed_data = {
+                "title": "Kick",
+                "description": f"{user.mention} has been kicked for {reason}.",
+                "color": Colour.orange()
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
+            await interaction.followup.send(embed=embed)
+            
             await self.db.add_moderation_log(interaction.guild.id, "kick", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
         except Exception as e:
-            await interaction.followup.send(f"An error occurred: {e}", ephemeral=True)
+            embed_data = {
+                "title": "Error",
+                "description": f"An error occurred: {e}",
+                "color": Colour.red()
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
+            await interaction.followup.send(embed=embed, ephemeral=True)
             print(f"An error occurred: {e}")
 
 
@@ -78,13 +110,27 @@ class AdminControls(commands.Cog):
     @app_commands.describe(user='The member to ban', reason='The reason for the ban')
     async def ban(self, interaction, user: discord.Member, reason: str):
         """Ban a member from the server."""
+        await interaction.response.defer()
         try:
-            await interaction.response.defer()
             await user.ban(reason=reason)
-            await interaction.followup.send(f"{user.mention} has been banned for {reason}.")
+            
+            embed_data = {
+                "title": "Ban",
+                "description": f"{user.mention} has been banned for {reason}.",
+                "color": Colour.dark_red()
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
+            await interaction.followup.send(embed=embed)
+            
             await self.db.add_moderation_log(interaction.guild.id, "ban", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
         except Exception as e:
-            await interaction.followup.send(f"An error occurred: {e}", ephemeral=True)
+            embed_data = {
+                "title": "Error",
+                "description": f"An error occurred: {e}",
+                "color": Colour.red()
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
+            await interaction.followup.send(embed=embed, ephemeral=True)
             print(f"An error occurred: {e}")
 
 
@@ -100,26 +146,57 @@ class AdminControls(commands.Cog):
                 roles = [role for role in user.roles if role != interaction.guild.default_role]
                 select = RoleSelect(placeholder='Select a role to remove', roles=roles, action='remove')
             else:
-                await interaction.followup.send("Invalid action. Please enter 'add' or 'remove'.")
+                embed_data = {
+                    "title": "Error",
+                    "description": "Invalid action. Please enter 'add' or 'remove'.",
+                    "color": discord.Colour.red()
+                }
+                embed = await self.embed_cog.create_embed(interaction, **embed_data)
+                await interaction.followup.send(embed=embed)
                 return
-
+            embed_data = {
+                "title": "Role Adjustment",
+                "description": f"Please select a role to {action} for {user.mention}:",
+                "color": discord.Colour.blue()
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
             view = discord.ui.View()
             view.add_item(select)
-            await interaction.followup.send(f"Please select a role to {action} for {user.mention}:", view=view)
+            await interaction.followup.send(embed=embed, view=view)
 
         except Exception as e:
-            await interaction.followup.send(f"An error occurred: {e}", ephemeral=True)
+            embed_data = {
+                "title": "Error",
+                "description": f"An error occurred: {e}",
+                "color": discord.Colour.red()
+            }
+            embed = await self.embed_cog.create_embed(interaction, **embed_data)
+            await interaction.followup.send(embed=embed, ephemeral=True)
             print(f"An error occurred: {e}")
 
 
-    @app_commands.command(name='announcement', description='Send an announcement message to all users')
-    @app_commands.describe(message='The message to send to all users')
+    @app_commands.command(name='announcement', description='Post an announcement in a specified channel')
+    @app_commands.describe(
+        title="Title of the Announcement",
+        description="Description of the Announcement",
+        channel="The channel where the announcement should be posted",
+        footer="Footer of the Announcement (optional)",
+        image_url="URL of the image to be displayed (optional)"
+    )
     @app_commands.checks.has_permissions(administrator=True)
-    async def send_message(self, interaction, *, message: str = None):
+    async def announcement(self, interaction, title: str, description: str, channel: discord.TextChannel, footer: str = None, image_url: str = None):
         await interaction.response.defer()
-        for member in interaction.guild.members:
-            if not member.bot:
-                await member.send(message)
+        # Create the embed
+        embed_data = {
+            "title": title,
+            "description": description,
+            "color": discord.Color.blue(),
+            "footer_text": footer,
+            "image_url": image_url
+        }
+        embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
+        # Send the embed to the specified channel
+        await channel.send("@everyone", embed=embed)
 
 
     @commands.Cog.listener()
@@ -139,9 +216,16 @@ class AdminControls(commands.Cog):
         # Check if the message is from a bot
         if message.author.bot:
             return
+        db_cog = self.bot.get_cog('Database')
+        if not db_cog:
+            print("Database cog not found!")
+            return
         if self.is_new_member(message.author):
             try:
-                support_channel = await self.bot.db.get_support_channel_name(message.guild.id)
+                support_channel = await db_cog.get_support_channel_name(message.guild.id)
+                if not support_channel:
+                    print(f"No support channel found for guild {message.guild.name}.")
+                    return
                 # Check if the message is in the support channel
                 if message.channel.name == support_channel:
                     return
@@ -150,7 +234,13 @@ class AdminControls(commands.Cog):
                             "where do i", "what", "what do i", "install", "bought", "download", "purchase", "sorry",
                             "solve", "fix", "problem", "issue", "error", "bug", "glitch", "crash", "crashing"]
                 if any(keyword in message.content.lower() for keyword in keywords):
-                    await message.reply(f"If you are looking for help or support, please go to the #support channel.")
+                    embed_data = {
+                        "title": "Support",
+                        "description": f"If you are looking for help or support, please go to the #{support_channel} channel.",
+                        "color": discord.Colour.blue()
+                    }
+                    embed = await self.bot.get_cog("CreateEmbed").create_embed(None, **embed_data)
+                    await message.reply(embed=embed)
             except commands.CommandOnCooldown:
                 # If user is on cooldown, just ignore
                 pass
@@ -158,22 +248,28 @@ class AdminControls(commands.Cog):
                 print(f"Error replying to message in channel {message.channel.name}: {e}")
 
 
-class RoleSelect(discord.ui.Select):
-        def __init__(self, placeholder, roles, action):
-            options = [discord.SelectOption(label=role.name, value=str(role.id)) for role in roles]
-            super().__init__(placeholder=placeholder, options=options, row=0)
-            self.action = action  # either 'add' or 'remove'
 
-        async def callback(self, interaction: discord.Interaction):
-            role = interaction.guild.get_role(int(self.values[0]))  # Get the selected role
-            user = interaction.user
-            
-            if self.action == 'add':
-                await user.add_roles(role)
-                await interaction.response.send_message(f"{user.mention} has been given the {role.name} role.")
-            elif self.action == 'remove':
-                await user.remove_roles(role)
-                await interaction.response.send_message(f"{user.mention} has been removed from the {role.name} role.")
+class RoleSelect(discord.ui.Select):
+    def __init__(self, bot, placeholder, roles, action):
+        options = [discord.SelectOption(label=role.name, value=str(role.id)) for role in roles]
+        super().__init__(placeholder=placeholder, options=options, row=0)
+        self.bot = bot
+        self.action = action  # either 'add' or 'remove'
+
+    async def callback(self, interaction: discord.Interaction):
+        role = interaction.guild.get_role(int(self.values[0]))  # Get the selected role
+        user = interaction.user
+        embed_data = {
+            "color": discord.Colour.blue(),
+        }
+        if self.action == 'add':
+            await user.add_roles(role)
+            embed_data["description"] = f"{user.mention} has been given the {role.name} role."
+        elif self.action == 'remove':
+            await user.remove_roles(role)
+            embed_data["description"] = f"{user.mention} has been removed from the {role.name} role."
+        embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):

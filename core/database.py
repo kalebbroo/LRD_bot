@@ -187,6 +187,12 @@ class Database(commands.Cog):
         await self.c.execute(query, (showcase_display_name,))
         channel_row = await self.c.fetchone()
         return channel_row[0] if channel_row else None
+    
+    async def get_support_channel_name(self, guild_id):
+        """Retrieve the name of the support channel for a specific guild."""
+        await self.c.execute(f"SELECT channel_name FROM channelmapping_{guild_id} WHERE channel_display_name = 'support'")
+        data = await self.c.fetchone()
+        return data[0] if data else None
 
 
     @commands.Cog.listener()
