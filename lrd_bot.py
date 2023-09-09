@@ -23,7 +23,7 @@ async def on_ready():
     print(f"Logged in as {bot.user.name}")
     await load_extensions()
     fmt = await bot.tree.sync()
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=f"{bot.command_prefix}help"))
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=f"/help"))
     print(f"synced {len(fmt)} commands")
     print(f"Loaded: {len(bot.cogs)} core files")
     welcome_cog = bot.get_cog("WelcomeNewUser")

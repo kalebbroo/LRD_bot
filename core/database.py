@@ -39,13 +39,6 @@ class Database(commands.Cog):
                     content TEXT
                 )
             """)
-            # Setup table for user post timestamps in the showcase channel
-            await self.c.execute(f"""
-                CREATE TABLE IF NOT EXISTS showcase_{guild_id}(
-                    user_id INTEGER PRIMARY KEY,
-                    last_post_time FLOAT
-                )
-            """)
             # Setup table for server roles
             await self.c.execute(f"""
                 CREATE TABLE IF NOT EXISTS serverroles_{guild_id}(
@@ -70,6 +63,22 @@ class Database(commands.Cog):
                     post_id INTEGER,
                     user_id INTEGER,
                     PRIMARY KEY(post_id, user_id)
+                )
+            """)
+            # Setup table for user info
+            await self.c.execute(f"""
+                CREATE TABLE IF NOT EXISTS users_{guild_id}(
+                    id INTEGER PRIMARY KEY,
+                    xp INTEGER,
+                    level INTEGER,
+                    last_message_time FLOAT,
+                    spam_count INTEGER,
+                    warnings TEXT,
+                    message_count INTEGER,
+                    last_warn_time FLOAT,
+                    emoji_count INTEGER,
+                    name_changes INTEGER,
+                    last_showcase_post FLOAT
                 )
             """)
             
@@ -193,6 +202,105 @@ class Database(commands.Cog):
         await self.c.execute(f"SELECT channel_name FROM channelmapping_{guild_id} WHERE channel_display_name = 'support'")
         data = await self.c.fetchone()
         return data[0] if data else None
+    
+    async def get_user(self, user_id, guild_id):
+        member = self.bot.get_guild(guild_id).get_member(user_id)
+        if member is not None and member.bot:
+            return None
+
+        await self.c.execute(f"SELECT * FROM users_{guild_id} WHERE id = ?", (user_id,))
+        data = await self.c.fetchone()
+
+        if data is None:
+            data = (user_id, 0, 0, 0, 0, '[]', 0, None, 0, 0, None)
+            await self.c.execute(f"INSERT INTO users_{guild_id} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data)
+            await self.conn.commit()
+
+        user = {
+            'id': data[0],
+            'xp': data[1],
+            'level': data[2],
+            'last_message_time': data[3],
+            'spam_count': data[4],
+            'warnings': data[5],
+            'message_count': data[6],
+            'last_warn_time': data[7],
+            'emoji_count': data[8],
+            'name_changes': data[9],
+            'last_showcase_post': data[10]
+        }
+        return user
+
+    async def update_user(self, user, guild_id):
+        await self.c.execute(f'''UPDATE users_{guild_id} SET xp = ?, level = ?, 
+                    last_message_time = ?, spam_count = ?, warnings = ?, 
+                    message_count = ?, last_warn_time = ?, emoji_count = ?, name_changes = ? WHERE id = ?''', 
+                    (user['xp'], user['level'], user['last_message_time'], user['spam_count'], 
+                        user['warnings'], user['message_count'], user['last_warn_time'], 
+                        user['emoji_count'], user['name_changes'], user['id']))
+        await self.conn.commit()
+
+    async def get_top_users(self, guild_id, limit):
+        await self.c.execute(f"SELECT * FROM users_{guild_id} ORDER BY xp DESC LIMIT ?", (limit * 2,))
+        data = await self.c.fetchall()
+
+        users = []
+        for user_data in data:
+            user = {
+                'id': user_data[0],
+                'xp': user_data[1],
+                'level': user_data[2],
+                'last_message_time': user_data[3],
+                'spam_count': user_data[4],
+                'warnings': user_data[5],
+                'message_count': user_data[6],
+                'last_warn_time': user_data[7],
+                'emoji_count': user_data[8],
+                'name_changes': user_data[9],
+                'last_showcase_post': user_data[10]
+            }
+            users.append(user)
+
+        guild = self.bot.get_guild(guild_id)
+        valid_users = []
+        for user in users:
+            try:
+                member = await guild.fetch_member(user['id'])
+                valid_users.append(user)
+                if len(valid_users) == limit:
+                    break
+            except discord.NotFound:
+                continue
+
+        return valid_users
+
+    async def get_rank(self, user_id, guild_id):
+        await self.c.execute(f"SELECT id FROM users_{guild_id} ORDER BY xp DESC")
+        users = await self.c.fetchall()
+
+        for i, user in enumerate(users, start=1):
+            if user[0] == user_id:
+                return i
+        return None
+    
+    async def get_bot_channel(self, guild_id):
+        """
+        Set the bot_channel based on channels in the database.
+        Prioritize channels with 'bot' in their name. If none found, use the default channel.
+        """
+        try:
+            # Query the database to find a channel with 'bot' in the name
+            await self.c.execute(f"SELECT channel_id FROM channelmapping_{guild_id} WHERE channel_name LIKE '%bot%' LIMIT 1")
+            channel_id = await self.c.fetchone()
+
+            if channel_id:  # If a bot channel is found in the database
+                self.bot_channel = self.bot.get_channel(channel_id[0])
+            else:  # If not, use the default channel
+                guild = self.bot.get_guild(guild_id)
+                self.bot_channel = guild.default_channel
+
+        except Exception as e:
+            print(f"Error in set_bot_channel: {e}")
 
 
     @commands.Cog.listener()
