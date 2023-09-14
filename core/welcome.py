@@ -88,7 +88,7 @@ class RulesView(View):
         self.bot = bot
 
         for button_name, role_info in role_mapping.items():
-            print(f"Adding button: {button_name}, Role ID: {role_info['role_id']}, Emoji: {role_info['emoji']}")
+            #print(f"Adding button: {button_name}, Role ID: {role_info['role_id']}, Emoji: {role_info['emoji']}")
             # Pass the bot instance when creating the RoleButton
             self.add_item(RoleButton(self.bot, label=button_name, role_id=role_info['role_id'], emoji=role_info['emoji']))
 
@@ -187,7 +187,7 @@ class WelcomeNewUser(commands.Cog):
         for btn_name in button_names:
             role_info = await db_cog.get_server_role(guild_id, btn_name)
             if role_info:
-                print(f"Found mapping for {btn_name}")
+                #print(f"Found mapping for {btn_name}")
                 role_mapping[btn_name] = {'role_id': role_info['role_id'], 'emoji': role_info['emoji']}
             else:
                 print(f"Did not find mapping for {btn_name}")

@@ -184,9 +184,9 @@ class XPCore(commands.Cog):
         Listener to handle interactions. Add XP for specific interactions.
         """
         try:
-            print(f"type: {interaction.type}")
+            #print(f"type: {interaction.type}")
             if interaction.type == discord.InteractionType.application_command:
-                print(f"interaction was a slash command")
+                #print(f"interaction was a slash command")
                 user_id = interaction.user.id
                 guild_id = interaction.guild.id
 

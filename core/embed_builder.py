@@ -27,6 +27,8 @@ class CreateEmbed(commands.Cog):
         :param fields: List of fields. Each field is a tuple (name, value, inline).
         :return: A discord.Embed object.
         """
+        print(f"Setting title in create_embed: {title}")  # Debugging
+        print(f"Setting description in create_embed: {description}")  # Debugging
 
         embed = discord.Embed(title=title, description=description, color=color)
 
@@ -46,7 +48,9 @@ class CreateEmbed(commands.Cog):
             for field in fields:
                 name, value, inline = field
                 embed.add_field(name=name, value=value, inline=inline)
-        
+
+        # print(f"Embed title after setting in create_embed: {embed.title}")  # Debugging
+        # print(f"Embed description after setting in create_embed: {embed.description}")  # Debugging
         return embed
 
 async def setup(bot):

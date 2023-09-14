@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import aiosqlite
+import datetime
 import os
 load_dotenv()
 
@@ -57,11 +58,11 @@ class Database(commands.Cog):
                     message TEXT
                 )
             """)
-            # Setup table for votes
             await self.c.execute(f"""
                 CREATE TABLE IF NOT EXISTS votes(
                     post_id INTEGER,
                     user_id INTEGER,
+                    vote_type TEXT,
                     PRIMARY KEY(post_id, user_id)
                 )
             """)
@@ -87,32 +88,70 @@ class Database(commands.Cog):
             print(f"Error setting up database: {e}")
 
     async def get_faq(self, number, guild_id):
-        await self.c.execute(f"SELECT content FROM faqs_{guild_id} WHERE number = ?", (number,))
-        data = await self.c.fetchone()
+        try:
+            await self.c.execute(f"SELECT content FROM faqs_{guild_id} WHERE LOWER(number) = ?", (str(number).lower(),))
+            data = await self.c.fetchone()
 
-        if data:
-            return data[0]
-        return None
+            if data:
+                return data[0]
+            return None
+        except Exception as e:
+            print(f"Error in get_faq: {e}")
+            return None
 
     async def add_faq(self, number, content, guild_id):
-        await self.c.execute(f"INSERT INTO faqs_{guild_id}(number, content) VALUES (?, ?)", (number, content))
-        await self.conn.commit()
+        try:
+            await self.c.execute(f"INSERT INTO faqs_{guild_id}(number, content) VALUES (?, ?)", (number, content))
+            await self.conn.commit()
+        except Exception as e:
+            print(f"Error in add_faq: {e}")
 
     async def remove_faq(self, number, guild_id):
-        await self.c.execute(f"DELETE FROM faqs_{guild_id} WHERE number = ?", (number,))
-        await self.conn.commit()
+        try:
+            await self.c.execute(f"DELETE FROM faqs_{guild_id} WHERE number = ?", (number,))
+            await self.conn.commit()
+        except Exception as e:
+            print(f"Error in remove_faq: {e}")
 
     async def get_last_post_time(self, user_id, guild_id):
-        await self.c.execute(f"SELECT last_post_time FROM showcase_{guild_id} WHERE user_id = ?", (user_id,))
-        data = await self.c.fetchone()
+        """
+        Retrieve the timestamp of the last post time for a user in a specific guild.
+        Args:
+        - user_id (int): The ID of the user.
+        - guild_id (int): The ID of the guild.
+        Returns:
+        - datetime.datetime | None: The last post time as a datetime object or None if not found.
+        """
+        try:
+            await self.c.execute(f"SELECT last_post_time FROM showcase_{guild_id} WHERE user_id = ?", (user_id,))
+            data = await self.c.fetchone()
+            if data:
+                # Convert the timestamp back to a datetime object
+                return datetime.datetime.utcfromtimestamp(data[0])
+            return None
+        except Exception as e:
+            print(f"Error in get_last_post_time: {e}")
+            return None
 
-        if data:
-            return data[0]
-        return None
 
     async def update_last_post_time(self, user_id, guild_id, timestamp):
-        await self.c.execute(f"INSERT OR REPLACE INTO showcase_{guild_id}(user_id, last_post_time) VALUES (?, ?)", (user_id, timestamp))
-        await self.conn.commit()
+        """
+        Update the last post time for a user in a specific guild.
+        Args:
+        - user_id (int): The ID of the user.
+        - guild_id (int): The ID of the guild.
+        - timestamp (datetime.datetime): The timestamp to set as the last post time.
+        Returns:
+        - None
+        """
+        try:
+            # Convert the datetime object to a string representation of a timestamp
+            timestamp = timestamp.timestamp()
+            await self.c.execute(f"INSERT OR REPLACE INTO showcase_{guild_id}(user_id, last_post_time) VALUES (?, ?)", (user_id, timestamp))
+            await self.conn.commit()
+        except Exception as e:
+            print(f"Error in update_last_post_time: {e}")
+
 
     async def close_db(self):
         await self.conn.close()
@@ -133,12 +172,16 @@ class Database(commands.Cog):
         return data
     
     async def get_server_role(self, guild_id, button_name):
-        await self.c.execute(f"SELECT role_id, emoji FROM serverroles_{guild_id} WHERE button_name = ?", (button_name,))
-        data = await self.c.fetchone()
-        
-        if data:
-            return {'role_id': data[0], 'emoji': data[1]}
-        return None
+        try:
+            await self.c.execute(f"SELECT role_id, emoji FROM serverroles_{guild_id} WHERE LOWER(button_name) = ?", (button_name.lower(),))
+            data = await self.c.fetchone()
+            
+            if data:
+                return {'role_id': data[0], 'emoji': data[1]}
+            return None
+        except Exception as e:
+            print(f"Error in get_server_role: {e}")
+            return None
 
     async def set_channel_mapping(self, guild_id, channel_display_name, channel_name, channel_id, message):
         try:
@@ -151,9 +194,13 @@ class Database(commands.Cog):
             print(f"Error setting channel mapping: {e}")
 
     async def get_button_names(self, guild_id):
-        await self.c.execute(f"SELECT button_name FROM serverroles_{guild_id}")
-        data = await self.c.fetchall()
-        return [item[0] for item in data]
+        try:
+            await self.c.execute(f"SELECT button_name FROM serverroles_{guild_id}")
+            data = await self.c.fetchall()
+            return [item[0] for item in data]
+        except Exception as e:
+            print(f"Error in get_button_names: {e}")
+            return []
     
     async def set_server_channel(self, interaction, guild_id, display_name, channel_name, channel_id):
         try:
@@ -190,18 +237,56 @@ class Database(commands.Cog):
 
     async def get_showcase_channel(self, guild_id, showcase_display_name="showcase"):
         """
-        Retrieve the showcase channel ID associated with a specific guild.
+        Retrieve the showcase channel ID by searching the guild channels.
         """
-        query = f"SELECT channel_id FROM channelmapping_{guild_id} WHERE channel_display_name = ? LIMIT 1"
-        await self.c.execute(query, (showcase_display_name,))
-        channel_row = await self.c.fetchone()
-        return channel_row[0] if channel_row else None
+        try:
+            guild = self.bot.get_guild(guild_id)
+            
+            if not guild:
+                print(f"Guild with ID {guild_id} not found.")
+                return None
+
+            for channel in guild.channels:
+                if isinstance(channel, discord.TextChannel) and channel.name.lower() == showcase_display_name.lower():
+                    #print(f"Found showcase channel in guild with ID: {channel.id}")
+                    return channel.id
+
+            print("No matching showcase channel found in the guild.")
+            return None
+
+        except Exception as e:
+            print(f"Error in get_showcase_channel: {e}")
+            return None
+    
+    async def get_admin_channel(self, guild_id):
+        """
+        Get the ID of the first channel from the server that contains the word 'admin' or 'staff' in its name.
+        """
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            print("Error: Guild not found.")
+            return None
+
+        # Look for a channel with 'admin' or 'staff' in its name
+        for channel in guild.text_channels:
+            if 'admin' in channel.name.lower() or 'staff' in channel.name.lower():
+                return channel.id
+
+        # If no matching channel is found
+        print("Error finding admin channel.")
+        return None
     
     async def get_support_channel_name(self, guild_id):
-        """Retrieve the name of the support channel for a specific guild."""
-        await self.c.execute(f"SELECT channel_name FROM channelmapping_{guild_id} WHERE channel_display_name = 'support'")
-        data = await self.c.fetchone()
-        return data[0] if data else None
+        try:
+            await self.c.execute(f"SELECT channel_name FROM channelmapping_{guild_id} WHERE LOWER(channel_display_name) = 'support'")
+            data = await self.c.fetchone()
+
+            if data:
+                return data[0]
+            return None
+        except Exception as e:
+            print(f"Error in get_support_channel_name: {e}")
+            return None
     
     async def get_user(self, user_id, guild_id):
         member = self.bot.get_guild(guild_id).get_member(user_id)
@@ -213,7 +298,7 @@ class Database(commands.Cog):
 
         if data is None:
             data = (user_id, 0, 0, 0, 0, '[]', 0, None, 0, 0, None)
-            await self.c.execute(f"INSERT INTO users_{guild_id} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data)
+            await self.c.execute(f"INSERT OR IGNORE INTO users_{guild_id} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data)
             await self.conn.commit()
 
         user = {
@@ -301,6 +386,31 @@ class Database(commands.Cog):
 
         except Exception as e:
             print(f"Error in set_bot_channel: {e}")
+
+    async def add_vote(self, post_id, user_id, vote_type):
+        try:
+            # Check if the user has already voted on this post
+            await self.c.execute(f"SELECT * FROM votes WHERE post_id = ? AND user_id = ?", (post_id, user_id))
+            data = await self.c.fetchone()
+            if data:
+                return False  # Indicates the user has already voted
+            # If not, insert the new vote
+            await self.c.execute(f"INSERT INTO votes(post_id, user_id, vote_type) VALUES (?, ?, ?)", (post_id, user_id, vote_type))
+            await self.conn.commit()
+            return True  # Indicates the vote was added
+        except Exception as e:
+            print(f"Error: {e}")
+            return False
+        
+    async def get_vote_count_for_post(self, post_id, vote_type):
+        await self.c.execute(f"SELECT COUNT(*) FROM votes WHERE post_id = ? AND vote_type = ?", (post_id, vote_type))
+        data = await self.c.fetchone()
+        return data[0] if data else 0
+
+    async def is_leading_post(self, post_id):
+        await self.c.execute(f"SELECT post_id, COUNT(*) as vote_count FROM votes WHERE vote_type = 'up' GROUP BY post_id ORDER BY vote_count DESC LIMIT 1")
+        data = await self.c.fetchone()
+        return data[0] == post_id if data else False
 
 
     @commands.Cog.listener()
