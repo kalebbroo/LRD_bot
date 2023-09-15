@@ -58,6 +58,7 @@ class Database(commands.Cog):
                     message TEXT
                 )
             """)
+            # Setup table for showcase voting
             await self.c.execute(f"""
                 CREATE TABLE IF NOT EXISTS votes(
                     post_id INTEGER,
