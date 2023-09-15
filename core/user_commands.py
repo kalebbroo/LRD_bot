@@ -38,6 +38,12 @@ class UserCommands(commands.Cog):
     ])
     async def help(self, interaction, command_name: str):
         await interaction.response.defer()
+        # Check if the command is an admin command and if the user is not an admin
+        admin_commands = ["setup", "mute", "unmute", "kick", "ban", "adjust_roles", "announcement"]
+        if command_name in admin_commands:
+            if not interaction.user.guild_permissions.administrator:  # checking if the user has admin permissions
+                await interaction.followup.send("You are not an admin.", ephemeral=True)
+                return
         try:
             title = "Help"
             description = "Overview of commands"
