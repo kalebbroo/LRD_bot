@@ -53,11 +53,26 @@ class UserCommands(commands.Cog):
                 case "overview":
                     fields = [
                         ("`/help`", "Displays detailed help for specified commands. Use `/help <command_name>` to see details. A list of commands will be displayed."),
-                        ("`/faq`", "Displays a list of frequently asked questions. Use `/faq <number>` to see a specific FAQ. A list of FAQs will be displayed.")
+                        ("`/faq`", "Displays a list of frequently asked questions. Use `/faq <number>` to see a specific FAQ. A list of FAQs will be displayed."),
+                        ("`!faq`", "Displays a specific FAQ in chat. Use `!faq <number>` to see a specific FAQ. A list of FAQs will be displayed."),
+                        ("`!howtoinstall`", "Displays a message in chat guiding users to check the `#howtoinstall` channel for detailed installation instructions."),
                     ]
                 case "faq":
                     title = "FAQ Command"
                     description = "Use `/faq <number>` to retrieve the FAQ of a specified number. If no number is provided, a list of FAQs will be displayed. Then, choose the FAQ you want to read more about."
+                case "!faq":
+                    title = "!faq Command"
+                    description = (
+                        "The `!faq` command retrieves specific FAQ entries by their number. "
+                        "Simply type `!faq <number>` in chat to get the details of a particular FAQ. If you don't provide "
+                        "a number, you'll be instructed to use the `/faq` slash command for a list of all FAQs."
+                    )
+                case "!howtoinstall":
+                    title = "!howtoinstall Command"
+                    description = (
+                        "By typing `!howtoinstall` in chat, a message will be sent guiding users to check "
+                        "the `#howtoinstall` channel for detailed installation instructions."
+                    )
                 case "showcase_server":
                     title = "Showcase Server Command"
                     description = "This command explains the showcase server functionality. It is mainly informative and is provided for understanding how showcase servers work."
