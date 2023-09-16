@@ -21,7 +21,7 @@ class AdminCommands(commands.Cog):
                 "description": "Please use the slash command `/faq` to read the FAQs.",
                 "color": discord.Color.blue()
             }
-            embed = await self.embed_cog.create_embed(ctx, **embed_data)
+            embed = await self.embed_cog.create_embed(**embed_data)
             await ctx.send(embed=embed)
             return
 
@@ -33,7 +33,7 @@ class AdminCommands(commands.Cog):
                 "description": faq_content,
                 "color": discord.Color.blue()
             }
-            embed = await self.embed_cog.create_embed(ctx, **embed_data)
+            embed = await self.embed_cog.create_embed(**embed_data)
             await ctx.send(embed=embed)
         else:
             embed_data = {
@@ -41,7 +41,7 @@ class AdminCommands(commands.Cog):
                 "description": f"Sorry, I couldn't find FAQ #{faq_number}.",
                 "color": discord.Color.red()
             }
-            embed = await self.embed_cog.create_embed(ctx, **embed_data)
+            embed = await self.embed_cog.create_embed(**embed_data)
             await ctx.send(embed=embed)
 
     @faq_command.error
@@ -53,7 +53,7 @@ class AdminCommands(commands.Cog):
                 "description": "Invalid FAQ number. Please provide a valid number.",
                 "color": discord.Color.red()
             }
-            embed = await self.embed_cog.create_embed(ctx, **embed_data)
+            embed = await self.embed_cog.create_embed(**embed_data)
             await ctx.send(embed=embed)
         else:
             embed_data = {
@@ -61,7 +61,7 @@ class AdminCommands(commands.Cog):
                 "description": "An unexpected error occurred. Please try again later.",
                 "color": discord.Color.red()
             }
-            embed = await self.embed_cog.create_embed(ctx, **embed_data)
+            embed = await self.embed_cog.create_embed(**embed_data)
             await ctx.send(embed=embed)
 
     @commands.command(name="howtoinstall", help="Directs the user to the #howtoinstall channel.")
@@ -74,7 +74,7 @@ class AdminCommands(commands.Cog):
             "color": discord.Color.green()
         }
         
-        embed = await self.embed_cog.create_embed(ctx, **embed_data)
+        embed = await self.embed_cog.create_embed(**embed_data)
         await ctx.send(embed=embed)
 
 async def setup(bot):
