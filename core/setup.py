@@ -73,12 +73,18 @@ class AddFAQModal(Modal):
         self.bot = bot
         
         # Creating input fields for FAQ Number and Content
-        self.number_input = TextInput(label='Enter FAQ number and title',
-                                            style=discord.TextStyle.short,
-                                            placeholder=f'Example: #1 Pateron Support', # maybe add a list of current FAQ numbers
-                                            min_length=1,
-                                            max_length=45,
-                                            required=True)
+        self.number_input = TextInput(label='Enter FAQ number',
+                              style=discord.TextStyle.short,
+                              placeholder=f'Example: 1',
+                              min_length=1,
+                              max_length=10,
+                              required=True)
+        self.name_input = TextInput(label='Enter FAQ name',
+                                    style=discord.TextStyle.short,
+                                    placeholder=f'Example: Patreon Support',
+                                    min_length=1,
+                                    max_length=45,
+                                    required=True)
         self.content_input = TextInput(label='Enter the FAQ content',
                                             style=discord.TextStyle.long,
                                             placeholder=f'Enter the FAQ content',
@@ -88,21 +94,35 @@ class AddFAQModal(Modal):
         
         # Add the TextInput components to the modal
         self.add_item(self.number_input)
+        self.add_item(self.name_input)
         self.add_item(self.content_input)
 
     async def on_submit(self, interaction):
-        number = int(self.number_input.value)
-        content = self.content_input.value
-        embed_cog = self.bot.get_cog("CreateEmbed")
         try:
-            database_cog = self.bot.get_cog("Database")
-            await database_cog.add_faq(number, content, interaction.guild.id)
+            number = int(self.number_input.value)
+            name = self.name_input.value
+            content = self.content_input.value
+            embed_cog = self.bot.get_cog("CreateEmbed")
 
-            embed = await embed_cog.create_embed(title="Success", description=f"FAQ #{number} has been added successfully.", color=Colour.green())
+            database_cog = self.bot.get_cog("Database")
+            existing_faq = await database_cog.get_faq(number, interaction.guild.id)
+            
+            if existing_faq:
+                embed = await embed_cog.create_embed(title="Error", description=f"FAQ #{number} already exists. Choose another number.", color=Colour.red())
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+
+            await database_cog.add_faq(number, name, content, interaction.guild.id)
+
+            embed = await embed_cog.create_embed(title="Success", description=f"FAQ #{number} - {name} has been added successfully.", color=Colour.green())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except ValueError:
+            embed = await embed_cog.create_embed(title="Error", description=f"Please enter a valid number for the FAQ.", color=Colour.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
             embed = await embed_cog.create_embed(title="Error", description=f"Error adding FAQ: {e}", color=Colour.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 
 class RoleMappingModal(Modal):

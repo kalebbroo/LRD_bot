@@ -37,6 +37,7 @@ class Database(commands.Cog):
             await self.c.execute(f"""
                 CREATE TABLE IF NOT EXISTS faqs_{guild_id}(
                     number INTEGER PRIMARY KEY,
+                    name TEXT,
                     content TEXT
                 )
             """)
@@ -90,19 +91,39 @@ class Database(commands.Cog):
 
     async def get_faq(self, number, guild_id):
         try:
-            await self.c.execute(f"SELECT content FROM faqs_{guild_id} WHERE LOWER(number) = ?", (str(number).lower(),))
-            data = await self.c.fetchone()
+            print(f"Executing SQL: SELECT number, name, content FROM faqs_{guild_id}")  # Debugging
+            
+            # Fetch all data from the table
+            await self.c.execute(f"SELECT number, name, content FROM faqs_{guild_id}")
+            
+            all_data = await self.c.fetchall()
 
-            if data:
-                return data[0]
+            # Print information about the table's columns
+            await self.c.execute(f"PRAGMA table_info(faqs_{guild_id});")
+            columns = await self.c.fetchall()
+            print(f"Columns in faqs_{guild_id}: {columns}")
+
+            # Print all the fetched data for debugging
+            print("All data fetched from the table:")
+            for row in all_data:
+                print(f"Each Row: {row}")
+            # Find the specific FAQ number the user wants
+            for row in all_data:
+                if row[0] == number:  # The 'number' column should be the first column based on the SELECT statement
+                    print(f"Data matched for FAQ number {number}: {row}")  # Debugging
+                    return {"name": row[1], "content": row[2]}
+            
+            # If we've looped through all rows and haven't found the FAQ number
+            print(f"Data fetched for FAQ number {number}: None")  # Debugging
             return None
+
         except Exception as e:
             print(f"Error in get_faq: {e}")
             return None
 
-    async def add_faq(self, number, content, guild_id):
+    async def add_faq(self, number, name, content, guild_id):
         try:
-            await self.c.execute(f"INSERT INTO faqs_{guild_id}(number, content) VALUES (?, ?)", (number, content))
+            await self.c.execute(f"INSERT INTO faqs_{guild_id}(number, name, content) VALUES (?, ?, ?)", (number, name, content))
             await self.conn.commit()
         except Exception as e:
             print(f"Error in add_faq: {e}")
@@ -113,6 +134,14 @@ class Database(commands.Cog):
             await self.conn.commit()
         except Exception as e:
             print(f"Error in remove_faq: {e}")
+
+    async def get_all_faqs(self, guild_id):
+        try:
+            await self.c.execute(f"SELECT number, name, content FROM faqs_{guild_id}")
+            return await self.c.fetchall()
+        except Exception as e:
+            print(f"Error in get_all_faqs: {e}")
+            return []
 
     async def get_last_post_time(self, user_id, guild_id):
         """
@@ -166,11 +195,6 @@ class Database(commands.Cog):
             await self.conn.commit()
         except Exception as e:
             print(f"Error setting server role: {e}")
-
-    async def get_all_faqs(self, guild_id):
-        await self.c.execute(f"SELECT number, content FROM faqs_{guild_id}")
-        data = await self.c.fetchall()
-        return data
     
     async def get_server_role(self, guild_id, button_name):
         try:

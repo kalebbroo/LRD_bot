@@ -15,6 +15,7 @@ class AdminCommands(commands.Cog):
         Handles the !faq command. If a number is provided, it fetches the corresponding FAQ from the database.
         If no number is provided, it instructs the user to use the /faq slash command.
         """
+        #print(f"FAQ number from command: {faq_number}")  # Debugging
         if not faq_number:
             embed_data = {
                 "title": "FAQ Command",
@@ -25,12 +26,12 @@ class AdminCommands(commands.Cog):
             await ctx.send(embed=embed)
             return
 
-        faq_content = await self.db.get_faq(faq_number, ctx.guild.id)
+        faq_data = await self.db.get_faq(faq_number, ctx.guild.id)
 
-        if faq_content:
+        if faq_data:
             embed_data = {
-                "title": f"FAQ #{faq_number}",
-                "description": faq_content,
+                "title": f"FAQ #{faq_number} - {faq_data['name']}",
+                "description": faq_data['content'],
                 "color": discord.Color.blue()
             }
             embed = await self.embed_cog.create_embed(**embed_data)

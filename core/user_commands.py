@@ -19,8 +19,8 @@ class UserCommands(commands.Cog):
             return
         # Construct the FAQ display
         embed = discord.Embed(title="Frequently Asked Questions", description="")
-        for number, content in faqs:
-            embed.add_field(name=f"FAQ #{number}", value=content, inline=False)
+        for number, name, content in faqs:  # Unpack the tuple values
+            embed.add_field(name=f"FAQ #{number} - {name}", value=content, inline=False)
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name='help', description='Displays help information.')
