@@ -47,6 +47,10 @@ class SetupSelect(Select):
                 await interaction.response.send_modal(modal)
 
             case "Retroactively Add XP":
+                embed = await embed_cog.create_embed(title="Retroactively Adding XP", 
+                                                     description="Started the process, this may take some time.", 
+                                                     color=Colour.blue())
+                await interaction.response.send_message(embed=embed, ephemeral=True)
                 print("Beginning XP addition based on message history. This may take some time.")
                 # Loop through all text channels in the server
                 for channel in interaction.guild.text_channels:
