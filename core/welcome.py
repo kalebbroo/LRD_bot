@@ -140,6 +140,7 @@ class WelcomeNewUser(commands.Cog):
                 - Second, you will need to map the channel names to the database. These are the channels where the messages will be posted.
                 - Third, you will need to set up the welcome/rules page. This message should explain the rules of the server and instruct users to click the buttons to get their roles.
                 - Lastly, you will need to add the FAQ entries. These are the FAQs that admins can send to users when they ask questions.
+                
                 **Bonus:** Retroactively add XP to users who have been active in the server before the bot was added. This should only be ran once and is dangerous.
 
                 **Note:** The bot will not work until the setup is complete.
