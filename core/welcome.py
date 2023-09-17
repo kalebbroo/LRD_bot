@@ -136,13 +136,17 @@ class WelcomeNewUser(commands.Cog):
                 title="Bot Setup Required",
                 description="""The bot has joined the server but it has not been setup.
                 Please use the `/setup` command to configure the bot. Or the `/help setup` command to see detailed instructions.
-                - First, you will need to create the role buttons and map a role to them.
-                - Second, you will need to map the channel names to the database.
-                - Third, you will need to set up the welcome page.
-                - Lastly, you will need to add the FAQ entries.""",
+                - First, you will need to create the role buttons and map a role to them. These are the buttons that users will click to get their roles.
+                - Second, you will need to map the channel names to the database. These are the channels where the messages will be posted.
+                - Third, you will need to set up the welcome/rules page. This message should explain the rules of the server and instruct users to click the buttons to get their roles.
+                - Lastly, you will need to add the FAQ entries. These are the FAQs that admins can send to users when they ask questions.
+                **Bonus:** Retroactively add XP to users who have been active in the server before the bot was added. This should only be ran once and is dangerous.
+
+                **Note:** The bot will not work until the setup is complete.
+                """,
+                footer = "Please contact Kalebbroo if you need help.",
                 color=discord.Colour.red()
             )
-            
             for member in guild.members:
                 # Check if the member has the Administrator permission
                 if member.guild_permissions.administrator:
