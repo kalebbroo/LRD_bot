@@ -3,6 +3,8 @@ from discord.ext import commands
 from discord import app_commands, Embed, Colour
 from discord.ui import Modal, TextInput, Select
 from core.welcome import WelcomePageModal
+import asyncio
+import random
 
 class SetupSelect(Select):
     def __init__(self, bot, *args, **kwargs):
@@ -43,6 +45,30 @@ class SetupSelect(Select):
                 role_mapping, unmapped_buttons = await welcome_cog.get_role_mapping(interaction.guild_id)
                 modal = WelcomePageModal(self.bot, interaction, role_mapping)
                 await interaction.response.send_modal(modal)
+
+            case "Retroactively Add XP":
+                print("Beginning XP addition based on message history. This may take some time.")
+                # Loop through all text channels in the server
+                for channel in interaction.guild.text_channels:
+                    try:
+                        # Fetch messages from the channel using history
+                        async for message in channel.history(limit=None):  # `limit=None` fetches all messages
+                            user_data = await self.bot.get_cog('Database').get_user(message.author.id, interaction.guild.id)
+                            # Check if user_data is not None before proceeding
+                            if user_data is None:
+                                continue
+                            # Update message count
+                            user_data['message_count'] += 1
+                            # Add XP to the user
+                            xp = random.randint(5, 50)
+                            user_data['xp'] += xp
+                            # Update the user data in DB
+                            await self.bot.get_cog('Database').update_user(user_data, interaction.guild.id)  
+                        # Sleep for a short duration to prevent rate limits
+                        await asyncio.sleep(0.2)
+                    except Exception as e:
+                        print(f"Error fetching messages from channel {channel.name}: {e}")
+                print("Finished adding XP based on message history.")
 
             # TODO: Add other admin commands
             case _:
@@ -273,7 +299,7 @@ class SetupCommand(commands.Cog):
         embed = await embed_cog.create_embed(title="Setup Command",
                                              description="Select a Setup Sub-Command below:",
                                              color=discord.Colour.blue())
-        commands = ["Map Roles and Create Buttons", "Map Channel Names to Database", "Welcome Page Setup", "Add FAQ", "Remove FAQ"]
+        commands = ["Map Roles and Create Buttons", "Map Channel Names to Database", "Welcome Page Setup", "Add FAQ", "Remove FAQ", "Retroactively Add XP"]
         select = SetupSelect(self.bot, custom_id="setup_command", placeholder="Select a Command")
         select.options = [discord.SelectOption(label=command, value=command) for command in commands]
         view = discord.ui.View()

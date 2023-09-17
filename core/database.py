@@ -296,6 +296,7 @@ class Database(commands.Cog):
     async def get_user(self, user_id, guild_id):
         member = self.bot.get_guild(guild_id).get_member(user_id)
         if member is not None and member.bot:
+            print(f"User {user_id} is a bot.")
             return None
 
         await self.c.execute(f"SELECT * FROM users_{guild_id} WHERE id = ?", (user_id,))

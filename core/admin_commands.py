@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 
 class AdminCommands(commands.Cog):
-    """A cog for handling FAQs."""
+    """A cog for handling inline commands."""
 
     def __init__(self, bot):
         self.bot = bot

@@ -160,7 +160,16 @@ class RankCore(commands.Cog):
             user = await db_cog.get_user(user_id, guild_id)
             guild = self.bot.get_guild(guild_id)
             member = guild.get_member(user_id)
-            channel = self.bot.get_channel(channel_id)
+
+            # Check if the user is below level 5
+            if user['level'] < 5:
+                return
+
+            # If user is between levels 5-15, send the card to bot-spam channel
+            if 5 <= user['level'] <= 15:
+                channel = discord.utils.get(guild.text_channels, name="bot-spam")
+            else:
+                channel = self.bot.get_channel(channel_id)
 
             setting = Settings(
                 background="https://cdn.discordapp.com/attachments/1122904665986711622/1123091340008370228/wumpus.jpg",

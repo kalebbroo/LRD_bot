@@ -85,6 +85,7 @@ class UserCommands(commands.Cog):
                         "\n**Map Roles and Create Buttons:** Lets you map server roles to button display names and emojis. A modal will guide you through the mapping process. Recommended roles to map include 'I Read the Rules', 'Showcase', 'Announcements', 'Patreon', and more.\n"
                         "\n**Map Channel Names to Database:** Links specific channel names and IDs in the database. A modal will guide you through the mapping. Recommended channels to map are 'bot-channel', 'general', 'showcase', 'how-to-install', 'rules', 'support-patreon', 'announcements', and so on.\n"
                         "\n**Welcome Page Setup:** Used to set up the welcome page for new users. The system will guide you through the configuration process."
+                        "\n**Retroactive XP Setup:** Used to set up retroactive XP for users who joined the server before the bot was added. **This is dangerous!**"
                     )
                 case "mute":
                     title = "Mute Command"

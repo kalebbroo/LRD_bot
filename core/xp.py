@@ -53,6 +53,9 @@ class XPCore(commands.Cog):
         Add XP to a user and update the user's XP in the database.
         """
         try:
+            if xp is None:
+                print(f"XP value is None for user ID {user_id} in guild {guild_id}.")
+                return
             user = await self.db_cog.get_user(user_id, guild_id)
             if self.current_event is not None and self.current_event['name'] == "Double XP Day":
                 xp = self.current_event['bonus'](xp)
