@@ -144,7 +144,7 @@ class WelcomeNewUser(commands.Cog):
 
                 **Note:** The bot will not work until the setup is complete.
                 """,
-                footer = "Please contact Kalebbroo if you need help.",
+                footer_text = "Please contact Kalebbroo if you need help.",
                 color=discord.Colour.red()
             )
             for member in guild.members:
