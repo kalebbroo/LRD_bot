@@ -82,6 +82,10 @@ class XPCore(commands.Cog):
         try:
             if message.author.bot:
                 return
+             # Check if the message is a command
+            ctx = await self.bot.get_context(message)
+            if ctx.valid:
+                return  # Don't process XP for commands
             user_id = message.author.id
             guild_id = message.guild.id
             user = await self.db_cog.get_user(user_id, guild_id)

@@ -91,32 +91,12 @@ class Database(commands.Cog):
 
     async def get_faq(self, number, guild_id):
         try:
-            print(f"Executing SQL: SELECT number, name, content FROM faqs_{guild_id}")  # Debugging
+            await self.c.execute(f"SELECT name, content FROM faqs_{guild_id} WHERE number = ?", (number,))
+            row = await self.c.fetchone()
             
-            # Fetch all data from the table
-            await self.c.execute(f"SELECT number, name, content FROM faqs_{guild_id}")
-            
-            all_data = await self.c.fetchall()
-
-            # Print information about the table's columns
-            await self.c.execute(f"PRAGMA table_info(faqs_{guild_id});")
-            columns = await self.c.fetchall()
-            print(f"Columns in faqs_{guild_id}: {columns}")
-
-            # Print all the fetched data for debugging
-            print("All data fetched from the table:")
-            for row in all_data:
-                print(f"Each Row: {row}")
-            # Find the specific FAQ number the user wants
-            for row in all_data:
-                if row[0] == number:  # The 'number' column should be the first column based on the SELECT statement
-                    print(f"Data matched for FAQ number {number}: {row}")  # Debugging
-                    return {"name": row[1], "content": row[2]}
-            
-            # If we've looped through all rows and haven't found the FAQ number
-            print(f"Data fetched for FAQ number {number}: None")  # Debugging
+            if row:
+                return {"name": row[0], "content": row[1]}
             return None
-
         except Exception as e:
             print(f"Error in get_faq: {e}")
             return None
