@@ -1,6 +1,7 @@
 from discord.ext.commands import BucketType, cooldown
 from discord import app_commands, Embed, Colour
 from datetime import datetime, timedelta
+from typing import List, Union
 from discord.ext import commands
 from discord.utils import get
 import discord
@@ -178,25 +179,37 @@ class AdminControls(commands.Cog):
     @app_commands.command(name='announcement', description='Post an announcement in a specified channel')
     @app_commands.describe(
         title="Title of the Announcement",
-        description="Description of the Announcement",
+        message="Content of the Announcement",
         channel="The channel where the announcement should be posted",
-        footer="Footer of the Announcement (optional)",
-        image_url="URL of the image to be displayed (optional)"
+        tag_a_role="Roles to tag in the announcement (optional)",
+        media_url="URL of the media to be displayed (optional)"
     )
     @app_commands.checks.has_permissions(administrator=True)
-    async def announcement(self, interaction, title: str, description: str, channel: discord.TextChannel, footer: str = None, image_url: str = None):
-        await interaction.response.defer()
-        # Create the embed
+    async def announcement(self, interaction, title: str, message: str, channel: discord.TextChannel, 
+                        tag_a_role: discord.Role = None, media_url: str = None):
+        await interaction.response.defer(ephemeral=True)
+
+        # Check if the user attached any media
+        if interaction.message and interaction.message.attachments:
+            media_url = interaction.message.attachments[0].url
+        footer = "test"
         embed_data = {
             "title": title,
-            "description": description,
+            "description": message,
             "color": discord.Color.blue(),
             "footer_text": footer,
-            "image_url": image_url
         }
         embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
+
+        if media_url:
+            embed.set_image(url=media_url)
+        mention_role = ""
+        if tag_a_role:
+            mention_role = f"<@&{tag_a_role.id}>"
+
         # Send the embed to the specified channel
-        await channel.send("@everyone", embed=embed)
+        await interaction.followup.send("Announcement successfully posted.", ephemeral=True)
+        await channel.send(content=mention_role, embed=embed)
 
 
     @commands.Cog.listener()
