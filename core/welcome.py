@@ -72,7 +72,7 @@ class WelcomePageModal(Modal):
         await database_cog.set_channel_mapping(interaction.guild.id, welcome_channel_name, channel.name, channel.id, welcome_msg)
         print(self.role_mapping)
         try:
-            view = RulesView(database_cog, interaction.guild.id, self.role_mapping)
+            view = RulesView(self.bot, database_cog, interaction.guild.id, self.role_mapping)
             await channel.send(content=welcome_msg, view=view)
             embed = await embed_cog.create_embed(title="Success", description="Welcome page created successfully!", color=Colour.green())
             await interaction.response.send_message(embed=embed, ephemeral=True)

@@ -10,7 +10,7 @@ class AdminControls(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db = self.bot.get_cog("Database")
-        self.embed_cog = bot.get_cog("CreateEmbed")
+        self.embed_cog = self.bot.get_cog("CreateEmbed")
 
     async def cog_check(self, ctx):
         """Check if the command invoker has admin permissions."""
@@ -78,7 +78,7 @@ class AdminControls(commands.Cog):
             embed = await self.embed_cog.create_embed(interaction, **embed_data)
             await interaction.followup.send(embed=embed, ephemeral=True)
 
-
+    # TODO: fix mod log db entry
     @app_commands.command(name='kick', description='Kick a member from the server')
     @app_commands.describe(user='The member to kick', reason='The reason for the kick')
     async def kick(self, interaction, user: discord.Member, reason: str):
@@ -95,7 +95,7 @@ class AdminControls(commands.Cog):
             embed = await self.embed_cog.create_embed(interaction, **embed_data)
             await interaction.followup.send(embed=embed)
             
-            await self.db.add_moderation_log(interaction.guild.id, "kick", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
+            #await self.db.add_moderation_log(interaction.guild.id, "kick", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
         except Exception as e:
             embed_data = {
                 "title": "Error",
