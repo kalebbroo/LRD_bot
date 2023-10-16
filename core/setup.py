@@ -46,6 +46,10 @@ class SetupSelect(Select):
                 modal = WelcomePageModal(self.bot, interaction, role_mapping)
                 await interaction.response.send_modal(modal)
 
+            case "Support Ticket Setup":
+                support_cog = self.bot.get_cog("Support")
+                # TODO: design the support ticket setup modal
+
             case "Retroactively Add XP":
                 embed = await embed_cog.create_embed(title="Retroactively Adding XP", 
                                                      description="Started the process, this may take some time.", 
@@ -289,6 +293,41 @@ class ChannelConfigModal(Modal):
             embed = await embed_cog.create_embed(title="Error", description=f"Error setting channel: {e}", color=Colour.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
+class SetupTicketSelect(Select):
+    def __init__(self, bot, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bot = bot
+        database_cog = self.bot.get_cog("Database")
+
+    async def callback(self, interaction):
+        channel = int(self.values[0])
+        modal = SetupTicketModal(self.bot, interaction, channel)
+        try:
+            await interaction.response.send_modal(modal=modal)
+        except Exception as e:
+            print(f"Error: {e}")
+
+class SetupTicketModal(Modal):
+    def __init__(self, bot, interaction, channel):
+        super().__init__(title="Setup Support Page")
+        self.bot = bot
+        self.channel = channel
+        
+        self.message_input = TextInput(label='Enter the support message',
+                                       style=discord.TextStyle.long,
+                                       placeholder='Click a button below to open a support ticket or commission request.',
+                                       min_length=1,
+                                       max_length=4000,
+                                       required=True)
+        self.add_item(self.message_input)
+
+    async def on_submit(self, interaction):
+        support_msg = self.message_input.value
+        channel = self.channel_name.value
+        embed_cog = self.bot.get_cog("CreateEmbed")
+        database_cog = self.bot.get_cog("Database")
+        await database_cog.set_channel_mapping(interaction.guild.id, channel, channel.name, channel.id, support_msg)
+
 
 class SetupCommand(commands.Cog):
     def __init__(self, bot):
@@ -303,7 +342,8 @@ class SetupCommand(commands.Cog):
         embed = await embed_cog.create_embed(title="Setup Command",
                                              description="Select a Setup Sub-Command below:",
                                              color=discord.Colour.blue())
-        commands = ["Map Roles and Create Buttons", "Map Channel Names to Database", "Welcome Page Setup", "Add FAQ", "Remove FAQ", "Retroactively Add XP"]
+        commands = ["Map Roles and Create Buttons", "Map Channel Names to Database", "Welcome Page Setup", 
+                    "Support Ticket Setup", "Add FAQ", "Remove FAQ", "Retroactively Add XP"]
         select = SetupSelect(self.bot, custom_id="setup_command", placeholder="Select a Command")
         select.options = [discord.SelectOption(label=command, value=command) for command in commands]
         view = discord.ui.View()
