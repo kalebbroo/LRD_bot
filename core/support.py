@@ -56,31 +56,33 @@ class Support(commands.Cog):
 
         @discord.ui.button(style=ButtonStyle.success, label="Create Support Ticket", custom_id="support_ticket", row=1)
         async def support_ticket(self, interaction, button):
-            await interaction.response.defer(ephermal=True)
-            select_menu = discord.SelectMenu(custom_id='ticket_type', placeholder='Choose a ticket type...', options=[
-            discord.SelectOption(label='General Inquiry', value='general'),
-            discord.SelectOption(label='Technical Issue', value='technical'),
-            discord.SelectOption(label='Account Support', value='account'),
-            ])
-            
-            action_row = discord.ActionRow(select_menu)
-            
-            await interaction.response.send_message("Please choose the type of ticket you'd like to create:", components=[action_row], ephemeral=True)
+
+            select_menu = Support.UpscaleSelect(self.bot, interaction)
+            view = discord.ui.View()
+            view.add_item(select_menu)
+            embed = discord.Embed(title="Support Ticket", description="Please choose the type of ticket you'd like to create:", color=Colour.green())
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        
 
         @discord.ui.button(style=ButtonStyle.success, label="Report A User", custom_id="report", row=1)
         async def report(self, interaction, button):
-            await interaction.response.defer(ephemeral=True)
             modal = Support.ReportModal(self.bot, interaction, interaction.channel)
-            await modal.start(interaction)
+            await interaction.response.send_modal(modal=modal)
 
         @discord.ui.button(style=ButtonStyle.success, label="How to Use", custom_id="how_to", row=1)
         async def how_to(self, interaction, button):
             await interaction.response.defer(ephermal=True)
+            # TODO: add the logic to send the user a message explaining how to use the ticket system
 
         @discord.ui.button(style=ButtonStyle.success, label="Commission Requests", custom_id="commission", row=2)
         async def commissions(self, interaction, button):
             await interaction.response.defer(ephemeral=True)
             await interaction.response.send_message("Report User button clicked!", ephemeral=True)
+            # TODO: Send a message explaining how to use the commission system
+            # Add a yes and no button so they can confirm if they want to enter a commission
+            # If yes, send open a modal for them to enter the info
+            # On submit of the modal, Create a private thread for the commission, 
+            # If no, send a message saying they can if they change their mind
 
     # TODO: add this logic correctly for the buttons
             
@@ -114,6 +116,7 @@ class Support(commands.Cog):
     class ChooseTicket(Select):
         def __init__(self, bot):
             self.bot = bot
+
             options = [
                 discord.SelectOption(label='Pack From MCModels', value='mcmodels'),
                 discord.SelectOption(label='Patreon Model', value='patreon_model'),
@@ -121,50 +124,36 @@ class Support(commands.Cog):
                 discord.SelectOption(label='Patreon Plugins', value='patreon_plugins'),
                 discord.SelectOption(label='Other', value='other'),
             ]
-            super().__init__(custom_id='choose_ticket', placeholder='Choose a ticket type...', options=options)
+
+            super().__init__(placeholder='Choose an image to use as a reference', options=options)
 
         async def callback(self, interaction):
-            await interaction.response.defer()
-
-            type_of_model_pack = self.values[0]
-            select_menu = Support.SelectProduct(self.bot)
-            view = discord.ui.View()
-            view.add_item(select_menu)
-            await interaction.channel.send("Select a product  ", view=view)
-
-
-    # Select Menu for choosing what type of product they are opening a ticket for
-    class SelectProduct(Select):
-        def __init__(self, bot, interaction):
-            self.bot = bot
-
-            match self.values[0]:
+            ticket_type = self.values[0]
+            match ticket_type:
                 case 'mcmodels':
-                    options = [
-                        discord.SelectOption(label='Product1', value='product1'),
-                        discord.SelectOption(label='Product2', value='product2'),
-                    ]
+                    # TODO: Send an embed here explaining how mcmodels works
+                    pass
                 case 'patreon_model':
-                    options = [
-                        discord.SelectOption(label='Product1', value='product1'),
-                    ]
+                    modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Patreon Model")
+                    await interaction.response.send_modal(modal=modal)
                 case 'free_model':
-                    options = [
-                        discord.SelectOption(label='Product1', value='product1'),
-                    ]
+                    modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Free Model")
+                    await interaction.response.send_modal(modal=modal)
                 case 'patreon_plugins':
-                    options = [
-                        discord.SelectOption(label='Product1', value='product1'),
-                    ]
+                    modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Patreon Plugins")
+                    await interaction.response.send_modal(modal=modal)
                 case 'other':
-                    options = [
-                        discord.SelectOption(label='Product1', value='product1'),
-                    ]
+                    modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Other")
+                    await interaction.response.send_modal(modal=modal)
                 case _:
                     interaction.channel.send("Something went wrong. Please try again.", ephemeral=True)
 
 
-            super().__init__(custom_id='select_product', placeholder='Choose a product...', options=options)
+
+    # Select Menu for choosing what type of free model they are opening a ticket for
+    class SelectFreeModel(Select):
+        def __init__(self, bot, interaction):
+            self.bot = bot
 
         async def callback(self, bot, interaction):
             await interaction.response.defer()
@@ -215,6 +204,67 @@ class Support(commands.Cog):
             embed.add_field(name="Reason for Report", value=reason, inline=False)
             
             await staff_channel.send(embed=embed)
+
+    class TicketModal(Modal):
+        def __init__(self, bot, interaction, channel, ticket_type):
+            super().__init__(title=f"{ticket_type} Ticket")
+            self.bot = bot
+            self.channel = channel
+            self.ticket_type = ticket_type
+            self.product_name_input = TextInput(label='Enter product name',
+                                                style=discord.TextStyle.short,
+                                                placeholder='MONKEY D LUFFY! V1.0',
+                                                min_length=1,
+                                                max_length=100,
+                                                required=True)
+            self.add_item(self.product_name_input)
+            self.server_version_input = TextInput(label='Enter server version',
+                                                style=discord.TextStyle.short,
+                                                placeholder='Paper 1.20.2 Build #241',
+                                                min_length=1,
+                                                max_length=20,
+                                                required=True)
+            self.add_item(self.server_version_input)
+            self.plugin_versions_input = TextInput(label='Enter plugin versions',
+                                                style=discord.TextStyle.short,
+                                                placeholder='MythicMobs v5.4.1, ModelEngine v4.0.2',
+                                                min_length=1,
+                                                max_length=200,
+                                                required=True)
+            self.add_item(self.plugin_versions_input)
+            self.details_input = TextInput(label=f'Enter details for {ticket_type}',
+                                        style=discord.TextStyle.long,
+                                        placeholder=f"""Enter your {ticket_type} issue here. 
+                                        Include as much detail as possible. 
+                                        You will be able to add additional images 
+                                        and logs in your ticket thread.""",
+                                        min_length=1,
+                                        max_length=4000,
+                                        required=True)
+            self.add_item(self.details_input)
+
+        async def on_submit(self, interaction):
+            # Capture the input values
+            product_name = self.product_name_input.value
+            server_version = self.server_version_input.value
+            plugin_versions = self.plugin_versions_input.value
+            details = self.details_input.value
+
+            guild = interaction.guild
+            staff_channel = discord.utils.get(guild.text_channels, name='staff')
+
+            # Notify the user that the ticket has been submitted
+            await interaction.followup.send("Your ticket has been submitted.", ephemeral=True)
+
+            # Send an embed to the staff channel
+            embed = discord.Embed(title=f"New {self.ticket_type} Ticket", color=discord.Colour.blue())
+            embed.add_field(name="Product Name", value=product_name, inline=False)
+            embed.add_field(name="Server Version", value=server_version, inline=False)
+            embed.add_field(name="Plugin Versions", value=plugin_versions, inline=False)
+            embed.add_field(name="Additional Details", value=details, inline=False)
+
+            await staff_channel.send(embed=embed)
+
 
 
 async def setup(bot):
