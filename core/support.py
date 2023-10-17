@@ -45,25 +45,14 @@ class Support(commands.Cog):
             print(f"Error deleting the support message: {e}")
 
         # Repost the welcome message with the buttons
-        role_mapping, _ = await self.get_role_mapping(guild_id)
-        view = Support.SupportView(self.bot, db_cog, guild_id, role_mapping)
+        view = Support.TicketButton(self.bot, db_cog, guild_id)
         await support_channel.send(content=support_msg, view=view)
 
-    class SupportView(View):
-        def __init__(self, bot, database_cog, guild_id, role_mapping):
-            super().__init__(timeout=None)
-            self.database = database_cog
+
+    class TicketButton(View):
+        def __init__(self, bot, interaction):
+            super().__init__(timeout=120)
             self.bot = bot
-
-            self.add_item(Support.TicketButton(self.bot, label=button_name))
-
-    class TicketButton(Button):
-        cooldown_users = {}
-
-        def __init__(self, bot, label, role_id, emoji=None):
-            super().__init__(label=label, custom_id=str(role_id), emoji=emoji)
-            self.bot = bot
-            self.role_id = role_id
 
         @discord.ui.button(style=ButtonStyle.success, label="Create Support Ticket", custom_id="support_ticket", row=1)
         async def support_ticket(self, interaction, button):
@@ -126,11 +115,11 @@ class Support(commands.Cog):
         def __init__(self, bot):
             self.bot = bot
             options = [
-                discord.SelectOption(label='Pack From MCModels', value='option1'),
-                discord.SelectOption(label='Patreon Model', value='option2'),
-                discord.SelectOption(label='Free Model', value='option2'),
-                discord.SelectOption(label='LRD Plugins', value='option2'),
-                discord.SelectOption(label='Other', value='option2'),
+                discord.SelectOption(label='Pack From MCModels', value='mcmodels'),
+                discord.SelectOption(label='Patreon Model', value='patreon_model'),
+                discord.SelectOption(label='Free Model', value='free_model'),
+                discord.SelectOption(label='Patreon Plugins', value='patreon_plugins'),
+                discord.SelectOption(label='Other', value='other'),
             ]
             super().__init__(custom_id='choose_ticket', placeholder='Choose a ticket type...', options=options)
 
@@ -146,16 +135,38 @@ class Support(commands.Cog):
 
     # Select Menu for choosing what type of product they are opening a ticket for
     class SelectProduct(Select):
-        def __init__(self, bot):
+        def __init__(self, bot, interaction):
             self.bot = bot
-            options = [
-                discord.SelectOption(label='Product1', value='product1'),
-                discord.SelectOption(label='Product2', value='product2'),
-                # Add more options here
-            ]
+
+            match self.values[0]:
+                case 'mcmodels':
+                    options = [
+                        discord.SelectOption(label='Product1', value='product1'),
+                        discord.SelectOption(label='Product2', value='product2'),
+                    ]
+                case 'patreon_model':
+                    options = [
+                        discord.SelectOption(label='Product1', value='product1'),
+                    ]
+                case 'free_model':
+                    options = [
+                        discord.SelectOption(label='Product1', value='product1'),
+                    ]
+                case 'patreon_plugins':
+                    options = [
+                        discord.SelectOption(label='Product1', value='product1'),
+                    ]
+                case 'other':
+                    options = [
+                        discord.SelectOption(label='Product1', value='product1'),
+                    ]
+                case _:
+                    interaction.channel.send("Something went wrong. Please try again.", ephemeral=True)
+
+
             super().__init__(custom_id='select_product', placeholder='Choose a product...', options=options)
 
-        async def callback(self, interaction):
+        async def callback(self, bot, interaction):
             await interaction.response.defer()
 
             specific_product = self.values[0]
