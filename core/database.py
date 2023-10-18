@@ -417,7 +417,15 @@ class Database(commands.Cog):
         await self.c.execute(f"SELECT post_id, COUNT(*) as vote_count FROM votes WHERE vote_type = 'up' GROUP BY post_id ORDER BY vote_count DESC LIMIT 1")
         data = await self.c.fetchone()
         return data[0] == post_id if data else False
-
+    
+    async def get_channel_display_names(self, guild_id):
+        try:
+            await self.c.execute(f"SELECT channel_display_name FROM channelmapping_{guild_id}")
+            data = await self.c.fetchall()
+            return [item[0] for item in data]
+        except Exception as e:
+            print(f"Error in get_channel_display_names: {e}")
+            return []
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):

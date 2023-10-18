@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 class Support(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.embed_cog = bot.get_cog("CreateEmbed")
 
     # TODO: create a template the user has to follow when creating a ticket
     # TODO: create a ticket system for free items
@@ -51,7 +52,7 @@ class Support(commands.Cog):
 
     class TicketButton(View):
         def __init__(self, bot, interaction):
-            super().__init__(timeout=120)
+            super().__init__(timeout=None)
             self.bot = bot
 
         @discord.ui.button(style=ButtonStyle.success, label="Create Support Ticket", custom_id="support_ticket", row=1)
@@ -84,33 +85,6 @@ class Support(commands.Cog):
             # On submit of the modal, Create a private thread for the commission, 
             # If no, send a message saying they can if they change their mind
 
-    # TODO: add this logic correctly for the buttons
-            
-    async def ticket_type_selected(self, interaction):
-        selected_value = interaction.component.selected_options[0]
-
-        # TODO: correctly pass channel info
-        
-        # Create a private thread for the ticket
-        guild = interaction.guild
-        support_channel = self.find_channel_by_name(guild, 'support')  # Assuming you have this utility function
-        staff_channel = self.find_channel_by_name(guild, 'staff')  # Assuming you have this utility function
-        
-        thread = await support_channel.create_text_channel(f"{selected_value}-ticket")
-        
-        # Create a "Join Ticket" button
-        join_ticket_button = discord.Button(style=discord.ButtonStyle.primary, label="Join Ticket")
-        
-        # Create an action row
-        action_row = discord.ActionRow(join_ticket_button)
-        
-        # Send a message to the staff channel
-        await staff_channel.send(f"A new {selected_value} ticket has been created!", components=[action_row])
-        
-        await interaction.response.send_message(f"You selected: {selected_value}. A new ticket thread has been created.", ephemeral=True)
-
-    # TODO: Add select menu logic
-
 
     # Select Menu for choosing what type of ticket they are opening
     class ChooseTicket(Select):
@@ -129,18 +103,40 @@ class Support(commands.Cog):
 
         async def callback(self, interaction):
             ticket_type = self.values[0]
+            guild = interaction.guild
+            member = guild.get_member(interaction.user.id)
+            allowed_roles = ["Golem", "Gold Golem", "Shaman", "Hermitcrab"]
+            has_allowed_role = any(role.name in allowed_roles for role in member.roles)
+
             match ticket_type:
                 case 'mcmodels':
-                    # TODO: Send an embed here explaining how mcmodels works
-                    pass
+                    embed = await self.embed_cog.create_embed(
+                        title="MC-Models Content Support",
+                        description="We provide support for MC-Models packs exclusively on the MC-Models Discord.",
+                        color=discord.Colour.green(),
+                        fields=[
+                            ("How to Get Support", "Please open a ticket on the MC-Models Discord with your order number and we will be with you ASAP.", False),
+                            ("Discord Invite", "[Join MC-Models Discord](https://discord.com/invite/MCModels)", False),
+                            ("Perks", "Private channels so we can share: logs, configs, even files, without risking leaks on either end.", False),
+                            ("Order Verification", "The bot tracks and checks order numbers to verify purchases.", False),
+                            ("Message Tracking", "Your issue won't get lost or buried when other people post messages.", False)
+                        ]
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
                 case 'patreon_model':
-                    modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Patreon Model")
-                    await interaction.response.send_modal(modal=modal)
+                    if not has_allowed_role:
+                        await self.send_patreon_info(interaction)
+                    else:
+                        modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Patreon Model")
+                        await interaction.response.send_modal(modal=modal)
+                case 'patreon_plugins':
+                    if not has_allowed_role:
+                        await self.send_patreon_info(interaction)
+                    else:
+                        modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Patreon Plugins")
+                        await interaction.response.send_modal(modal=modal)
                 case 'free_model':
                     modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Free Model")
-                    await interaction.response.send_modal(modal=modal)
-                case 'patreon_plugins':
-                    modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Patreon Plugins")
                     await interaction.response.send_modal(modal=modal)
                 case 'other':
                     modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Other")
@@ -148,19 +144,18 @@ class Support(commands.Cog):
                 case _:
                     interaction.channel.send("Something went wrong. Please try again.", ephemeral=True)
 
-
-
-    # Select Menu for choosing what type of free model they are opening a ticket for
-    class SelectFreeModel(Select):
-        def __init__(self, bot, interaction):
-            self.bot = bot
-
-        async def callback(self, bot, interaction):
-            await interaction.response.defer()
-
-            specific_product = self.values[0]
-            # TODO: add the logic to create ticket in a private thread
-            await self.ticket_type_selected(self, interaction)
+        async def send_patreon_info(self, interaction):
+            embed = await self.embed_cog.create_embed(
+                title="Patreon Information",
+                description="Here's how to get access to Patreon roles and content.",
+                color=discord.Colour.red(),
+                fields=[
+                    ("Billing Information", "Patreon billing is a bit tricky, and you may experience issues like double billing. For more details, [click here](https://tinyurl.com/LittleRoomDevFAQ-06).", False),
+                    ("What's Available on Patreon?", "Different tiers provide access to different types of content. For a complete rundown, [click here](https://tinyurl.com/LittleRoomDevFAQ-07-1) and [here](https://tinyurl.com/LittleRoomDevFAQ-07-2).", False),
+                    ("Getting Support and Roles", "To get your Discord role and to access support, link your Discord to your Patreon account. For more information, [click here](https://tinyurl.com/LittleRoomDevFAQ-08).", False)
+                ]
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
     class ReportModal(Modal):
@@ -198,11 +193,14 @@ class Support(commands.Cog):
             # Notify the user that the report has been submitted
             await interaction.followup.send("Your report has been submitted.", ephemeral=True)
             
-            # Send an embed to the staff channel
-            embed = discord.Embed(title="New User Report", color=discord.Colour.red())
-            embed.add_field(name="Reported User ID", value=reported_user_id, inline=False)
-            embed.add_field(name="Reason for Report", value=reason, inline=False)
-            
+            embed = await self.bot.get_cog("CreateEmbed").create_embed(
+                title="New User Report",
+                color=discord.Colour.red(),
+                fields=[
+                    ("Reported User ID", reported_user_id, False),
+                    ("Reason for Report", reason, False)
+                ]
+            )
             await staff_channel.send(embed=embed)
 
     class TicketModal(Modal):
@@ -252,18 +250,56 @@ class Support(commands.Cog):
 
             guild = interaction.guild
             staff_channel = discord.utils.get(guild.text_channels, name='staff')
+            
+            # Create a private thread for the ticket
+            thread = await staff_channel.create_text_channel(
+                name=f"{self.ticket_type}-ticket-{interaction.user.name}",
+                type=discord.ChannelType.private_thread
+            )
 
             # Notify the user that the ticket has been submitted
             await interaction.followup.send("Your ticket has been submitted.", ephemeral=True)
 
-            # Send an embed to the staff channel
-            embed = discord.Embed(title=f"New {self.ticket_type} Ticket", color=discord.Colour.blue())
-            embed.add_field(name="Product Name", value=product_name, inline=False)
-            embed.add_field(name="Server Version", value=server_version, inline=False)
-            embed.add_field(name="Plugin Versions", value=plugin_versions, inline=False)
-            embed.add_field(name="Additional Details", value=details, inline=False)
+            # Send an embed to the thread with the provided details
+            embed = await self.bot.get_cog("CreateEmbed").create_embed(
+                title=f"New {self.ticket_type} Ticket",
+                color=discord.Colour.blue(),
+                fields=[
+                    ("Product Name", product_name, False),
+                    ("Server Version", server_version, False),
+                    ("Plugin Versions", plugin_versions, False),
+                    ("Additional Details", details, False)
+                ]
+            )
+            await thread.send(embed=embed)
+            # Notify the user that they can upload any additional images or logs in the thread
+            await thread.send(f"{interaction.user.mention}, you can upload any images or logs needed here.")
 
-            await staff_channel.send(embed=embed)
+    class SupportMessageModal(Modal):
+        def __init__(self, bot, channel_id):
+            super().__init__(title="Enter Support Message")
+            self.bot = bot
+            self.channel_id = channel_id
+
+            self.message_input = TextInput(
+                label='Enter the support message',
+                style=discord.TextStyle.short,
+                placeholder='Enter the message to show in the support channel',
+                min_length=1,
+                max_length=400,
+                required=True
+            )
+            self.add_item(self.message_input)
+
+        async def on_submit(self, interaction):
+            support_msg = self.message_input.value
+            channel = self.bot.get_channel(self.channel_id)
+
+            # Create the view with buttons for the support ticket system
+            view = Support.TicketButton(self.bot, interaction)
+            
+            # Post the message with the buttons in the support channel
+            await channel.send(content=support_msg, view=view)
 
 
 
