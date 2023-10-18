@@ -72,8 +72,19 @@ class Support(commands.Cog):
 
         @discord.ui.button(style=ButtonStyle.success, label="How to Use", custom_id="how_to", row=1)
         async def how_to(self, interaction, button):
-            await interaction.response.defer(ephermal=True)
-            # TODO: add the logic to send the user a message explaining how to use the ticket system
+            # Use CreateEmbed cog to make an embed
+            embed = await self.bot.get_cog("CreateEmbed").create_embed(
+                title="How to Use the Support Ticket System",
+                description="Here's how to use the support ticket system.",
+                color=discord.Colour.blue(),
+                fields=[
+                    ("Create Support Ticket", "Click this button to create a new support ticket. You'll be presented with options to specify the type of your ticket.", False),
+                    ("Report A User", "Click this button if you want to report a user. A form will appear asking for details.", False),
+                    ("Commission Requests", "Click this button for commission related queries. You'll be guided through the process.", False)
+                ]
+            )
+            # Send the embed
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
         @discord.ui.button(style=ButtonStyle.success, label="Commission Requests", custom_id="commission", row=2)
         async def commissions(self, interaction, button):
