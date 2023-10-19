@@ -58,7 +58,7 @@ class Support(commands.Cog):
         @discord.ui.button(style=ButtonStyle.success, label="Create Support Ticket", custom_id="support_ticket", row=1)
         async def support_ticket(self, interaction, button):
 
-            select_menu = Support.UpscaleSelect(self.bot, interaction)
+            select_menu = Support.ChooseTicket(self.bot, interaction)
             view = discord.ui.View()
             view.add_item(select_menu)
             embed = discord.Embed(title="Support Ticket", description="Please choose the type of ticket you'd like to create:", color=Colour.green())
@@ -68,7 +68,7 @@ class Support(commands.Cog):
         @discord.ui.button(style=ButtonStyle.success, label="Report A User", custom_id="report", row=1)
         async def report(self, interaction, button):
             modal = Support.ReportModal(self.bot, interaction, interaction.channel)
-            await interaction.response.send_modal(modal=modal)
+            await interaction.response.send_modal(modal)
 
         @discord.ui.button(style=ButtonStyle.success, label="How to Use", custom_id="how_to", row=1)
         async def how_to(self, interaction, button):
@@ -84,7 +84,7 @@ class Support(commands.Cog):
                 ]
             )
             # Send the embed
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
         @discord.ui.button(style=ButtonStyle.success, label="Commission Requests", custom_id="commission", row=2)
         async def commissions(self, interaction, button):
@@ -92,7 +92,7 @@ class Support(commands.Cog):
             commissions = self.bot.get_cog("Commissions")
             
             # Create an embed to explain the commission system in detail
-            embed = await self.embed_cog.create_embed(
+            embed = await self.bot.get_cog("CreateEmbed").create_embed(
                 title="Commission Requests",
                 description="Heyo! Commissions are finally open, here's how this will work.",
                 color=discord.Colour.green(),
@@ -118,8 +118,9 @@ class Support(commands.Cog):
 
     # Select Menu for choosing what type of ticket they are opening
     class ChooseTicket(Select):
-        def __init__(self, bot):
+        def __init__(self, bot, interaction):
             self.bot = bot
+            self.interaction = interaction
 
             options = [
                 discord.SelectOption(label='Pack From MCModels', value='mcmodels'),
@@ -306,24 +307,28 @@ class Support(commands.Cog):
             await thread.send(f"{interaction.user.mention}, you can upload any images or logs needed here.")
 
     class SupportMessageModal(Modal):
-        def __init__(self, bot, channel_id):
+        def __init__(self, bot, guild_id, channel_display_name):
             super().__init__(title="Enter Support Message")
             self.bot = bot
-            self.channel_id = channel_id
+            self.guild_id = guild_id
+            self.channel_display_name = channel_display_name
 
             self.message_input = TextInput(
                 label='Enter the support message',
-                style=discord.TextStyle.short,
+                style=discord.TextStyle.long,
                 placeholder='Enter the message to show in the support channel',
                 min_length=1,
-                max_length=400,
+                max_length=4000,
                 required=True
             )
             self.add_item(self.message_input)
 
         async def on_submit(self, interaction):
+            await interaction.response.defer(ephemeral=True)
             support_msg = self.message_input.value
-            channel = self.bot.get_channel(self.channel_id)
+            db_cog = self.bot.get_cog("Database")
+            channel_id = await db_cog.get_id_from_display(self.guild_id, self.channel_display_name)
+            channel = self.bot.get_channel(channel_id)
 
             # Create the view with buttons for the support ticket system
             view = Support.TicketButton(self.bot, interaction)

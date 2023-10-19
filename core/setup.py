@@ -49,6 +49,7 @@ class SetupSelect(Select):
             case "Support Ticket Setup":
                 db_cog = self.bot.get_cog("Database")
                 select_menu = ChannelSelect(self.bot, db_cog, interaction.guild_id)
+                await select_menu.set_options_from_db()  # Populate the options
                 view = discord.ui.View()
                 view.add_item(select_menu)
                 await interaction.response.send_message("Please select a support channel:", view=view, ephemeral=True)
@@ -362,15 +363,16 @@ class ChannelSelect(Select):
         self.guild_id = guild_id
         self.options = []
         
-    async def fetch_channels(self):
+    async def set_options_from_db(self):
         channel_names = await self.db_cog.get_channel_display_names(self.guild_id)
         self.options = [discord.SelectOption(label=name, value=name) for name in channel_names]
-
+        
     async def callback(self, interaction):
-        selected_channel_id = self.values[0]
+        selected_channel_display_name = self.values[0]
+        guild_id = interaction.guild.id
         support_cog = self.bot.get_cog('Support')
-        modal = support_cog.SupportMessageModal(self.bot, selected_channel_id)
-        await interaction.response.send_modal(modal=modal)
+        modal = support_cog.SupportMessageModal(self.bot, guild_id, selected_channel_display_name)
+        await interaction.response.send_modal(modal)
 
 async def setup(bot):
     await bot.add_cog(SetupCommand(bot))

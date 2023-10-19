@@ -39,7 +39,7 @@ class Commissions(commands.Cog):
                 max_length=100,
                 required=True
             )
-            self.add_item(self.mob_type_input)
+            self.add_item(self.comission_type)
             
             # Text input for skills and behavior
             self.description = TextInput(
@@ -52,7 +52,7 @@ class Commissions(commands.Cog):
                 max_length=4000,
                 required=True
             )
-            self.add_item(self.skills_behavior_input)
+            self.add_item(self.description)
             
             # Text input for any extras
             self.extras = TextInput(
@@ -63,7 +63,7 @@ class Commissions(commands.Cog):
                 max_length=200,
                 required=False
             )
-            self.add_item(self.extras_input)
+            self.add_item(self.extras)
             
         async def on_submit(self, interaction):
             # Capture the input values

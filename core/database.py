@@ -426,6 +426,20 @@ class Database(commands.Cog):
         except Exception as e:
             print(f"Error in get_channel_display_names: {e}")
             return []
+        
+    async def get_id_from_display(self, guild_id, display_name):
+        # Construct the query
+        query = f"""SELECT channel_id FROM channelmapping_{guild_id}
+                WHERE channel_display_name = ?"""
+        # Execute the query
+        await self.c.execute(query, (display_name,))
+        result = await self.c.fetchone()
+        # Return the result
+        if result:
+            return result[0]
+        else:
+            return None
+
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
