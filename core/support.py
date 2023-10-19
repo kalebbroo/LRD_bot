@@ -10,44 +10,49 @@ class Support(commands.Cog):
         self.bot = bot
         self.embed_cog = bot.get_cog("CreateEmbed")
 
-    # TODO: create a template the user has to follow when creating a ticket
-    # TODO: create a ticket system for free items
-    # TODO: create a ticket system for patreon items
-    # TODO: send users to correct location for mcmodels
-    # TODO: send users to correct location for commissions
-
     """Redundency check for the support buttons. Will refresh the support message if the bot is restarted."""
 
     async def refresh_support_message(self, guild_id):
         db_cog = self.bot.get_cog("Database")
+        create_embed_cog = self.bot.get_cog("CreateEmbed")
         support_channel_name = await db_cog.get_support_channel(guild_id)
         support_msg = await db_cog.get_support_message(guild_id)
         guild = self.bot.get_guild(guild_id)
-
+        
         if not support_channel_name:
-            print(f"No welcome channel set for {guild.name}. Skipping welcome message refresh.")
+            print(f"No support channel set for {guild.name}. Skipping support message refresh.")
             return
         
         if not support_msg or support_msg.strip() == "":
-            print(f"No welcome message set for {guild.name}. Skipping welcome message send.")
+            print(f"No support message set for {guild.name}. Skipping support message send.")
             return
         
-        support_channel = discord.utils.get(guild.text_channels, name=support_channel_name)
+        # Fetch the channel ID from the database based on the channel's display name
+        support_channel_id = await db_cog.get_id_from_display(guild_id, support_channel_name)
+        support_channel = self.bot.get_channel(support_channel_id)
+        
         if not support_channel:
-            print(f"No channel named {support_channel_name} found in {guild.name}")
+            print(f"No channel with ID {support_channel_id} found in {guild.name}")
             return
         
-        # Delete the last message in the welcome channel
+        # Create the embed
+        embed = await create_embed_cog.create_embed(
+            title="Support Channel Information",
+            description=support_msg,
+            color=discord.Colour.blue()
+        )
+        # Delete the last message in the support channel
         try:
             last_message = await support_channel.fetch_message(support_channel.last_message_id)
             if last_message.author == self.bot.user:  # Ensure the last message was sent by the bot
                 await last_message.delete()
         except Exception as e:
             print(f"Error deleting the support message: {e}")
+        
+        # Repost the support message with the buttons
+        view = Support.TicketButton(self.bot, None)
+        await support_channel.send(embed=embed, view=view)
 
-        # Repost the welcome message with the buttons
-        view = Support.TicketButton(self.bot, db_cog, guild_id)
-        await support_channel.send(content=support_msg, view=view)
 
 
     class TicketButton(View):
@@ -65,12 +70,12 @@ class Support(commands.Cog):
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         
 
-        @discord.ui.button(style=ButtonStyle.success, label="Report A User", custom_id="report", row=1)
+        @discord.ui.button(style=ButtonStyle.danger, label="Report A User", custom_id="report", row=1)
         async def report(self, interaction, button):
             modal = Support.ReportModal(self.bot, interaction, interaction.channel)
             await interaction.response.send_modal(modal)
 
-        @discord.ui.button(style=ButtonStyle.success, label="How to Use", custom_id="how_to", row=1)
+        @discord.ui.button(style=ButtonStyle.secondary, label="How to Use", custom_id="how_to", row=1)
         async def how_to(self, interaction, button):
             # Use CreateEmbed cog to make an embed
             embed = await self.bot.get_cog("CreateEmbed").create_embed(
@@ -86,7 +91,7 @@ class Support(commands.Cog):
             # Send the embed
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
-        @discord.ui.button(style=ButtonStyle.success, label="Commission Requests", custom_id="commission", row=2)
+        @discord.ui.button(style=ButtonStyle.primary, label="Commission Requests", custom_id="commission", row=2)
         async def commissions(self, interaction, button):
             await interaction.response.defer(ephemeral=True)
             commissions = self.bot.get_cog("Commissions")
@@ -153,7 +158,7 @@ class Support(commands.Cog):
                             ("Message Tracking", "Your issue won't get lost or buried when other people post messages.", False)
                         ]
                     )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
                 case 'patreon_model':
                     if not has_allowed_role:
                         await self.send_patreon_info(interaction)
@@ -173,7 +178,7 @@ class Support(commands.Cog):
                     modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Other")
                     await interaction.response.send_modal(modal=modal)
                 case _:
-                    interaction.channel.send("Something went wrong. Please try again.", ephemeral=True)
+                    await interaction.response.send_message("Something went wrong. Please try again.", ephemeral=True)
 
         async def send_patreon_info(self, interaction):
             embed = await self.embed_cog.create_embed(
@@ -194,6 +199,7 @@ class Support(commands.Cog):
             super().__init__(title="Report a User")
             self.bot = bot
             self.channel = channel
+            self.guild_id = interaction.guild.id 
             
             self.user_id_input = TextInput(label='Enter the User ID to report',
                                         style=discord.TextStyle.short,
@@ -211,19 +217,36 @@ class Support(commands.Cog):
             self.add_item(self.reason_input)
 
         async def on_submit(self, interaction):
+            # Get the Database cog
+            db_cog = self.bot.get_cog("Database")
+            # Fetch all display names from the database
+            all_display_names = await db_cog.get_channel_display_names(self.guild_id)
+            # Find the first display name that contains 'admin' or 'staff'
+            staff_channel_name = next((name for name in all_display_names if 'admin' in name.lower() or 'staff' in name.lower()), None)
+            
+            if staff_channel_name:
+                # Fetch the corresponding channel ID from the database
+                staff_channel_id = await db_cog.get_id_from_display(self.guild_id, staff_channel_name)
+                staff_channel = self.bot.get_channel(staff_channel_id)
+            else:
+                await interaction.followup.send("No admin or staff channel found.", ephemeral=True)
+                return
+
+            # Get the reported user ID and reason for the report
             reported_user_id = self.user_id_input.value
             reason = self.reason_input.value
+
+            # Get the guild and validate that the user ID exists in the server
             guild = interaction.guild
-            staff_channel = discord.utils.get(guild.text_channels, name='staff')
-            
-            # Validate that the user ID exists in the server
             reported_user = guild.get_member(int(reported_user_id))
             if not reported_user:
                 await interaction.followup.send("The user ID provided does not belong to this server.", ephemeral=True)
                 return
+                
             # Notify the user that the report has been submitted
             await interaction.followup.send("Your report has been submitted.", ephemeral=True)
-            
+
+            # Create the embed
             embed = await self.bot.get_cog("CreateEmbed").create_embed(
                 title="New User Report",
                 color=discord.Colour.red(),
@@ -232,6 +255,7 @@ class Support(commands.Cog):
                     ("Reason for Report", reason, False)
                 ]
             )
+            # Send the embed to the staff channel
             await staff_channel.send(embed=embed)
 
     class TicketModal(Modal):
@@ -279,8 +303,16 @@ class Support(commands.Cog):
             plugin_versions = self.plugin_versions_input.value
             details = self.details_input.value
 
-            guild = interaction.guild
-            staff_channel = discord.utils.get(guild.text_channels, name='staff')
+            db_cog = self.bot.get_cog("Database")
+            all_display_names = await db_cog.get_channel_display_names(interaction.guild.id)
+            staff_channel_name = next((name for name in all_display_names if 'admin' in name.lower() or 'staff' in name.lower()), None)
+            
+            if staff_channel_name:
+                staff_channel_id = await db_cog.get_id_from_display(interaction.guild.id, staff_channel_name)
+                staff_channel = self.bot.get_channel(staff_channel_id)
+            else:
+                await interaction.followup.send("No admin or staff channel found.", ephemeral=True)
+                return
             
             # Create a private thread for the ticket
             thread = await staff_channel.create_text_channel(
@@ -314,9 +346,9 @@ class Support(commands.Cog):
             self.channel_display_name = channel_display_name
 
             self.message_input = TextInput(
-                label='Enter the support message',
+                label='Message to explain support tickets',
                 style=discord.TextStyle.long,
-                placeholder='Enter the message to show in the support channel',
+                placeholder='Enter the info message to show in the support channel. The ticket buttons will be added below it.',
                 min_length=1,
                 max_length=4000,
                 required=True

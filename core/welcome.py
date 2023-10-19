@@ -124,6 +124,7 @@ class WelcomeNewUser(commands.Cog):
 
     async def refresh_welcome_message(self, guild_id):
         db_cog = self.bot.get_cog("Database")
+        create_embed_cog = self.bot.get_cog("CreateEmbed")
         welcome_channel_name = await db_cog.get_welcome_channel(guild_id)
         welcome_msg = await db_cog.get_welcome_message(guild_id)
         guild = self.bot.get_guild(guild_id)
@@ -131,8 +132,7 @@ class WelcomeNewUser(commands.Cog):
         if not welcome_channel_name:
             print(f"No welcome channel set for {guild.name}. Skipping welcome message refresh.")
             # Fetch the CreateEmbed cog to create the embed
-            embed_cog = self.bot.get_cog("CreateEmbed")
-            embed = await embed_cog.create_embed(
+            embed = await create_embed_cog.create_embed(
                 title="Bot Setup Required",
                 description="""The bot has joined the server but it has not been setup.
                 Please use the `/setup` command to configure the bot. Or the `/help setup` command to see detailed instructions.
@@ -163,11 +163,19 @@ class WelcomeNewUser(commands.Cog):
             print(f"No welcome message set for {guild.name}. Skipping welcome message send.")
             return
 
-        welcome_channel = discord.utils.get(guild.text_channels, name=welcome_channel_name)
+        # Fetch the channel ID from the database based on the channel's display name
+        welcome_channel_id = await db_cog.get_id_from_display(guild_id, welcome_channel_name)
+        welcome_channel = self.bot.get_channel(welcome_channel_id)
         if not welcome_channel:
             print(f"No channel named {welcome_channel_name} found in {guild.name}")
             return
 
+        # Create the embed
+        embed = await create_embed_cog.create_embed(
+            title="Welcome to the LittleRoomDev Official Discord Server!",
+            description=welcome_msg,
+            color=discord.Colour.green()
+        )
         # Delete the last message in the welcome channel
         try:
             last_message = await welcome_channel.fetch_message(welcome_channel.last_message_id)
@@ -179,7 +187,7 @@ class WelcomeNewUser(commands.Cog):
         # Repost the welcome message with the buttons
         role_mapping, _ = await self.get_role_mapping(guild_id)
         view = RulesView(self.bot, db_cog, guild_id, role_mapping)
-        await welcome_channel.send(content=welcome_msg, view=view)
+        await welcome_channel.send(embed=embed, view=view)
 
 
     async def get_role_mapping(self, guild_id):
