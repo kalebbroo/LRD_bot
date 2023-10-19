@@ -89,7 +89,26 @@ class Support(commands.Cog):
         @discord.ui.button(style=ButtonStyle.success, label="Commission Requests", custom_id="commission", row=2)
         async def commissions(self, interaction, button):
             await interaction.response.defer(ephemeral=True)
-            await interaction.response.send_message("Report User button clicked!", ephemeral=True)
+            commissions = self.bot.get_cog("Commissions")
+            
+            # Create an embed to explain the commission system in detail
+            embed = await self.embed_cog.create_embed(
+                title="Commission Requests",
+                description="Heyo! Commissions are finally open, here's how this will work.",
+                color=discord.Colour.green(),
+                fields=[
+                    ("How to Start", "Just shoot me a DM with as much information about your Mob as you can (skills, behavior, etc). Reference photos are appreciated!", False),
+                    ("Payment", "First half of payment on start of work and second half when completed.", False),
+                    ("Reworks", "The first two reworks are free but after that it's $10.", False),
+                    ("Pricing", "Custom Mob -\nModel & Texture - $125 USD\nAnimation - $20 USD (each)\nMythicmobs Configuration - $125 USD", False),
+                    ("Extras", "Custom Sound Effects - $30 USD\nItems - $15 USD (each)\nHigh-res Render - $50 USD", False),
+                    ("Note", "This is a baseline price-point. If you have a grand concept with a ton of skills, the price may vary.", False)
+                ]
+            )
+            
+            view = commissions.CommissionView(self.bot)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
             # TODO: Send a message explaining how to use the commission system
             # Add a yes and no button so they can confirm if they want to enter a commission
             # If yes, send open a modal for them to enter the info
