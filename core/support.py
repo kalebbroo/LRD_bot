@@ -16,8 +16,11 @@ class Support(commands.Cog):
         db_cog = self.bot.get_cog("Database")
         create_embed_cog = self.bot.get_cog("CreateEmbed")
         support_channel_name = await db_cog.get_support_channel(guild_id)
-        support_msg = await db_cog.get_support_message(guild_id)
+        support_msg = await db_cog.get_support_message(guild_id, support_channel_name)
         guild = self.bot.get_guild(guild_id)
+        print(f"Refreshing support message for {guild.name}.\n")
+        print(f"Support channel name: {support_channel_name}\n")
+        print(f"Support message: {support_msg}\n")
         
         if not support_channel_name:
             print(f"No support channel set for {guild.name}. Skipping support message refresh.")
@@ -146,7 +149,8 @@ class Support(commands.Cog):
 
             match ticket_type:
                 case 'mcmodels':
-                    embed = await self.embed_cog.create_embed(
+                    embed_cog = self.bot.get_cog("CreateEmbed")
+                    embed = await embed_cog.create_embed(
                         title="MC-Models Content Support",
                         description="We provide support for MC-Models packs exclusively on the MC-Models Discord.",
                         color=discord.Colour.green(),
@@ -164,24 +168,25 @@ class Support(commands.Cog):
                         await self.send_patreon_info(interaction)
                     else:
                         modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Patreon Model")
-                        await interaction.response.send_modal(modal=modal)
+                        await interaction.response.send_modal(modal)
                 case 'patreon_plugins':
                     if not has_allowed_role:
                         await self.send_patreon_info(interaction)
                     else:
                         modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Patreon Plugins")
-                        await interaction.response.send_modal(modal=modal)
+                        await interaction.response.send_modal(modal)
                 case 'free_model':
                     modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Free Model")
-                    await interaction.response.send_modal(modal=modal)
+                    await interaction.response.send_modal(modal)
                 case 'other':
                     modal = Support.TicketModal(self.bot, interaction, interaction.channel, "Other")
-                    await interaction.response.send_modal(modal=modal)
+                    await interaction.response.send_modal(modal)
                 case _:
                     await interaction.response.send_message("Something went wrong. Please try again.", ephemeral=True)
 
         async def send_patreon_info(self, interaction):
-            embed = await self.embed_cog.create_embed(
+            embed_cog = self.bot.get_cog("CreateEmbed")
+            embed = await embed_cog.create_embed(
                 title="Patreon Information",
                 description="Here's how to get access to Patreon roles and content.",
                 color=discord.Colour.red(),
@@ -191,7 +196,7 @@ class Support(commands.Cog):
                     ("Getting Support and Roles", "To get your Discord role and to access support, link your Discord to your Patreon account. For more information, [click here](https://tinyurl.com/LittleRoomDevFAQ-08).", False)
                 ]
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
     class ReportModal(Modal):
@@ -288,9 +293,7 @@ class Support(commands.Cog):
             self.details_input = TextInput(label=f'Enter details for {ticket_type}',
                                         style=discord.TextStyle.long,
                                         placeholder=f"""Enter your {ticket_type} issue here. 
-                                        Include as much detail as possible. 
-                                        You will be able to add additional images 
-                                        and logs in your ticket thread.""",
+                                        Include as much detail as possible.""",
                                         min_length=1,
                                         max_length=4000,
                                         required=True)
@@ -361,12 +364,21 @@ class Support(commands.Cog):
             db_cog = self.bot.get_cog("Database")
             channel_id = await db_cog.get_id_from_display(self.guild_id, self.channel_display_name)
             channel = self.bot.get_channel(channel_id)
+            print(f"Updating the message for {self.channel_display_name} in {channel.name}.")
+
+            # Update the message in the database
+            update_success = await db_cog.update_channel_message(self.guild_id, self.channel_display_name, support_msg)
+            if update_success:
+                print(f"Successfully updated the message for {self.channel_display_name} in the database.")
+            else:
+                print(f"Failed to update the message for {self.channel_display_name} in the database.")
 
             # Create the view with buttons for the support ticket system
             view = Support.TicketButton(self.bot, interaction)
             
             # Post the message with the buttons in the support channel
             await channel.send(content=support_msg, view=view)
+
 
 
 

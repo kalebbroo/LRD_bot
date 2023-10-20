@@ -30,6 +30,7 @@ async def on_ready():
     for guild in bot.guilds:
         await welcome_cog.refresh_welcome_message(guild.id)
         await bot.get_cog("Showcase").recreate_buttons(guild)
+        await bot.get_cog("Support").refresh_support_message(guild.id)
 
 
 @bot.event

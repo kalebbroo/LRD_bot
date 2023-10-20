@@ -18,7 +18,7 @@ class Commissions(commands.Cog):
         async def commission_yes(self, interaction: Interaction, button: Button):
             # Open a modal for the user to enter commission info
             modal = Commissions.CommissionModal(self.bot)
-            await interaction.response.send_modal(modal=modal)
+            await interaction.response.send_modal(modal)
 
         @discord.ui.button(style=ButtonStyle.danger, label="No", custom_id="commission_no", row=1)
         async def commission_no(self, interaction: Interaction, button: Button):

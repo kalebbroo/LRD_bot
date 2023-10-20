@@ -439,6 +439,47 @@ class Database(commands.Cog):
             return result[0]
         else:
             return None
+        
+    async def get_support_channel(self, guild_id):
+        try:
+            query = f"""SELECT channel_display_name FROM channelmapping_{guild_id}
+                        WHERE channel_display_name = ?"""
+            await self.c.execute(query, ("Support",))
+            result = await self.c.fetchone()
+            if result:
+                return result[0]  # This will now return the display name
+            else:
+                return None
+        except Exception as e:
+            print(f"Error in get_support_channel: {e}")
+            return None
+
+    async def get_support_message(self, guild_id, display_name):
+        try:
+            query = f"""SELECT message FROM channelmapping_{guild_id}
+                        WHERE channel_display_name = ?"""
+            await self.c.execute(query, (display_name,))
+            result = await self.c.fetchone()
+            if result:
+                return result[0]
+            else:
+                return None
+        except Exception as e:
+            print(f"Error in get_support_message: {e}")
+            return None
+        
+    async def update_channel_message(self, guild_id, channel_display_name, message):
+        try:
+            query = f"""UPDATE channelmapping_{guild_id}
+                        SET message = ?
+                        WHERE channel_display_name = ?"""
+            await self.c.execute(query, (message, channel_display_name))
+            await self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error in update_channel_message: {e}")
+            return False
+
 
 
     @commands.Cog.listener()
