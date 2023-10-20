@@ -228,13 +228,15 @@ class Support(commands.Cog):
             all_display_names = await db_cog.get_channel_display_names(self.guild_id)
             # Find the first display name that contains 'admin' or 'staff'
             staff_channel_name = next((name for name in all_display_names if 'admin' in name.lower() or 'staff' in name.lower()), None)
+
+            # TODO: Change the channel to be from the mapped channels from the db.
             
             if staff_channel_name:
                 # Fetch the corresponding channel ID from the database
                 staff_channel_id = await db_cog.get_id_from_display(self.guild_id, staff_channel_name)
                 staff_channel = self.bot.get_channel(staff_channel_id)
             else:
-                await interaction.followup.send("No admin or staff channel found.", ephemeral=True)
+                await interaction.response.send_message("No admin or staff channel found.", ephemeral=True)
                 return
 
             # Get the reported user ID and reason for the report
@@ -245,20 +247,22 @@ class Support(commands.Cog):
             guild = interaction.guild
             reported_user = guild.get_member(int(reported_user_id))
             if not reported_user:
-                await interaction.followup.send("The user ID provided does not belong to this server.", ephemeral=True)
+                await interaction.response.send_message("The user ID provided does not belong to this server.", ephemeral=True)
                 return
                 
             # Notify the user that the report has been submitted
-            await interaction.followup.send("Your report has been submitted.", ephemeral=True)
+            await interaction.response.send_message("Your report has been submitted.", ephemeral=True)
 
-            # Create the embed
+             # Create the embed
             embed = await self.bot.get_cog("CreateEmbed").create_embed(
                 title="New User Report",
                 color=discord.Colour.red(),
                 fields=[
                     ("Reported User ID", reported_user_id, False),
+                    ("Reported Username", reported_user.name, False),
                     ("Reason for Report", reason, False)
-                ]
+                ],
+                footer_text=f"Reported by {interaction.user.name}"
             )
             # Send the embed to the staff channel
             await staff_channel.send(embed=embed)
@@ -292,13 +296,11 @@ class Support(commands.Cog):
             self.add_item(self.plugin_versions_input)
             self.details_input = TextInput(label=f'Enter details for {ticket_type}',
                                         style=discord.TextStyle.long,
-                                        placeholder=f"""Enter your {ticket_type} issue here. 
-                                        Include as much detail as possible.""",
+                                        placeholder=f"Enter your {ticket_type} issue here.",
                                         min_length=1,
                                         max_length=4000,
                                         required=True)
             self.add_item(self.details_input)
-
         async def on_submit(self, interaction):
             # Capture the input values
             product_name = self.product_name_input.value
@@ -307,24 +309,27 @@ class Support(commands.Cog):
             details = self.details_input.value
 
             db_cog = self.bot.get_cog("Database")
-            all_display_names = await db_cog.get_channel_display_names(interaction.guild.id)
-            staff_channel_name = next((name for name in all_display_names if 'admin' in name.lower() or 'staff' in name.lower()), None)
+
+            # Get the Support channel display name
+            support_channel_name = await db_cog.get_support_channel(interaction.guild.id)
             
-            if staff_channel_name:
-                staff_channel_id = await db_cog.get_id_from_display(interaction.guild.id, staff_channel_name)
-                staff_channel = self.bot.get_channel(staff_channel_id)
+            if support_channel_name:
+                # Get the Support channel ID from its display name
+                support_channel_id = await db_cog.get_id_from_display(interaction.guild.id, support_channel_name)
+                
+                # Get the Support channel object
+                support_channel = self.bot.get_channel(support_channel_id)
             else:
-                await interaction.followup.send("No admin or staff channel found.", ephemeral=True)
+                await interaction.followup.send("No Support channel found.", ephemeral=True)
                 return
             
             # Create a private thread for the ticket
-            thread = await staff_channel.create_text_channel(
+            thread = await support_channel.create_thread(
                 name=f"{self.ticket_type}-ticket-{interaction.user.name}",
                 type=discord.ChannelType.private_thread
             )
-
             # Notify the user that the ticket has been submitted
-            await interaction.followup.send("Your ticket has been submitted.", ephemeral=True)
+            await interaction.response.send_message("Your ticket has been submitted.", ephemeral=True)
 
             # Send an embed to the thread with the provided details
             embed = await self.bot.get_cog("CreateEmbed").create_embed(

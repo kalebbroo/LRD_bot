@@ -43,11 +43,9 @@ class Commissions(commands.Cog):
             
             # Text input for skills and behavior
             self.description = TextInput(
-                label="Description of the Commission",
+                label="Description of Commission",
                 style=discord.TextStyle.long,
-                placeholder="""Describe in detail the commission and be sure to include your budget. 
-                We can normally work with budgets of all sizes. 
-                However LRD is not interested in trading work for exposure.""",
+                placeholder="Describe the commission here",
                 min_length=1,
                 max_length=4000,
                 required=True
@@ -72,15 +70,15 @@ class Commissions(commands.Cog):
             extras = self.extras.value if self.extras.value else "None"
 
             guild = interaction.guild
-            staff_channel = discord.utils.get(guild.text_channels, name='staff')
+            commissions_channel = discord.utils.get(guild.text_channels, name='commissions')
             
             # Create a private thread for the commission
-            thread = await staff_channel.create_text_channel(
+            thread = await commissions_channel.create_thread(
                 name=f"commission-{interaction.user.name}",
                 type=discord.ChannelType.private_thread
             )
             # Notify the user that the commission has been submitted
-            await interaction.followup.send("Your commission request has been submitted.", ephemeral=True)
+            await interaction.response.send_message("Your commission request has been submitted.", ephemeral=True)
 
             # Send an embed to the thread with the provided details
             embed = await self.bot.get_cog("CreateEmbed").create_embed(

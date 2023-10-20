@@ -175,7 +175,7 @@ class AdminControls(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
             print(f"An error occurred: {e}")
 
-
+    # TODO: have the channels and roles populated from the database
     @app_commands.command(name='announcement', description='Post an announcement in a specified channel')
     @app_commands.describe(
         title="Title of the Announcement",
