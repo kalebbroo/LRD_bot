@@ -2,9 +2,9 @@ import discord
 from discord.ext import commands
 from discord import app_commands, Embed, Colour
 from discord.ui import Modal, TextInput, Select
-from core.welcome import WelcomePageModal
 import asyncio
 import random
+import json
 
 class SetupSelect(Select):
     def __init__(self, bot, *args, **kwargs):
@@ -41,15 +41,23 @@ class SetupSelect(Select):
                 await interaction.response.send_modal(modal)
 
             case "Welcome Page Setup":
-                welcome_cog = self.bot.get_cog("WelcomeNewUser")
-                role_mapping, unmapped_buttons = await welcome_cog.get_role_mapping(interaction.guild_id)
-                modal = WelcomePageModal(self.bot, interaction, role_mapping)
-                await interaction.response.send_modal(modal)
+                db_cog = self.bot.get_cog("Database")
+                select_menu = ChannelSelect(self.bot, db_cog, interaction.guild_id, "welcome")
+                await select_menu.set_options_from_db()
+                if not select_menu.options:
+                    await interaction.response.send_message("No channels are available for mapping. Please set up channels first.", ephemeral=True)
+                    return
+                view = discord.ui.View()
+                view.add_item(select_menu)
+                await interaction.response.send_message("Please select a welcome channel:", view=view, ephemeral=True)
 
             case "Support Ticket Setup":
                 db_cog = self.bot.get_cog("Database")
-                select_menu = ChannelSelect(self.bot, db_cog, interaction.guild_id)
-                await select_menu.set_options_from_db()  # Populate the options
+                select_menu = ChannelSelect(self.bot, db_cog, interaction.guild_id, "support")
+                await select_menu.set_options_from_db()
+                if not select_menu.options:
+                    await interaction.response.send_message("No channels are available for mapping. Please set up channels first.", ephemeral=True)
+                    return
                 view = discord.ui.View()
                 view.add_item(select_menu)
                 await interaction.response.send_message("Please select a support channel:", view=view, ephemeral=True)
@@ -297,41 +305,6 @@ class ChannelConfigModal(Modal):
             embed = await embed_cog.create_embed(title="Error", description=f"Error setting channel: {e}", color=Colour.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
-class SetupTicketSelect(Select):
-    def __init__(self, bot, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.bot = bot
-        database_cog = self.bot.get_cog("Database")
-
-    async def callback(self, interaction):
-        channel = int(self.values[0])
-        modal = SetupTicketModal(self.bot, interaction, channel)
-        try:
-            await interaction.response.send_modal(modal=modal)
-        except Exception as e:
-            print(f"Error: {e}")
-
-class SetupTicketModal(Modal):
-    def __init__(self, bot, interaction, channel):
-        super().__init__(title="Setup Support Page")
-        self.bot = bot
-        self.channel = channel
-        
-        self.message_input = TextInput(label='Enter the support message',
-                                       style=discord.TextStyle.long,
-                                       placeholder='Click a button below to open a support ticket or commission request.',
-                                       min_length=1,
-                                       max_length=4000,
-                                       required=True)
-        self.add_item(self.message_input)
-
-    async def on_submit(self, interaction):
-        support_msg = self.message_input.value
-        channel = self.channel_name.value
-        embed_cog = self.bot.get_cog("CreateEmbed")
-        database_cog = self.bot.get_cog("Database")
-        await database_cog.set_channel_mapping(interaction.guild.id, channel, channel.name, channel.id, support_msg)
-
 
 class SetupCommand(commands.Cog):
     def __init__(self, bot):
@@ -356,23 +329,35 @@ class SetupCommand(commands.Cog):
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 class ChannelSelect(Select):
-    def __init__(self, bot, db_cog, guild_id):
+    def __init__(self, bot, db_cog, guild_id, channel_type):
         super().__init__(placeholder='Choose a channel')
         self.bot = bot
         self.db_cog = db_cog
         self.guild_id = guild_id
+        self.channel_type = channel_type
         self.options = []
-        
+
     async def set_options_from_db(self):
-        channel_names = await self.db_cog.get_channel_display_names(self.guild_id)
-        self.options = [discord.SelectOption(label=name, value=name) for name in channel_names]
-        
+        channel_info = await self.db_cog.get_channel_info(self.guild_id)
+        self.options = [discord.SelectOption(label=name, value=json.dumps({"name": name, "id": channel_id})) for name, channel_id in channel_info]
+
     async def callback(self, interaction):
-        selected_channel_display_name = self.values[0]
+        selected_channel_data = json.loads(self.values[0])
+        selected_channel_display_name = selected_channel_data["name"]
+        selected_channel_id = selected_channel_data["id"]
+        
         guild_id = interaction.guild.id
-        support_cog = self.bot.get_cog('Support')
-        modal = support_cog.SupportMessageModal(self.bot, guild_id, selected_channel_display_name)
+        selected_channel = discord.utils.get(interaction.guild.text_channels, id=int(selected_channel_id))
+        
+        welcome_cog = self.bot.get_cog('WelcomeNewUser')
+        if self.channel_type == "support":
+            modal = welcome_cog.SetupModal(self.bot, interaction, channel=selected_channel, modal_type="support")
+        elif self.channel_type == "welcome":
+            role_mapping, _ = await welcome_cog.get_role_mapping(guild_id)
+            modal = welcome_cog.SetupModal(self.bot, interaction, role_mapping=role_mapping, channel=selected_channel, modal_type="welcome")
+        
         await interaction.response.send_modal(modal)
+
 
 async def setup(bot):
     await bot.add_cog(SetupCommand(bot))

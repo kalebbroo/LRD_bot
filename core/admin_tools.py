@@ -231,12 +231,14 @@ class AdminControls(commands.Cog):
             return
         db_cog = self.bot.get_cog('Database')
         not_silent = discord.utils.get(message.author.roles, name="Not Silent")
+        print(f"not_silent: {not_silent}")
         if not not_silent:
             try:
                 # Check for keywords
-                keywords = ["help", "support", "assist", "pack", "how", "how", "how do i", "where", "where do",
-                            "where do i", "what", "what do i", "install", "bought", "download", "purchase", "sorry",
-                            "solve", "fix", "problem", "issue", "error", "bug", "glitch", "crash", "crashing"]
+                keywords = ["help", "support", "assist", "pack", "how", "fix", "where", "why",
+                            "what", "install", "bought", "download", "purchase", "sorry",
+                            "solve", "fix", "problem", "issue", "error", "bug", "glitch", "crash", "crashing",
+                            "mcmodels", "buy", "patreon", "npc", "citizens", "mythicmobs", "modelengine", "meg", "meg4",]
                 if any(keyword in message.content.lower() for keyword in keywords):
                     embed_data = {
                         "title": "Need Help?",
@@ -254,7 +256,7 @@ class AdminControls(commands.Cog):
                                     ),
                         "color": discord.Colour.red()
                     }
-                    embed = await self.bot.get_cog("CreateEmbed").create_embed(None, **embed_data)
+                    embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
                     await message.reply(embed=embed)
             except commands.CommandOnCooldown:
                 # If user is on cooldown, just ignore

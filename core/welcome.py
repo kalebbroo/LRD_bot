@@ -3,6 +3,7 @@ from discord import app_commands, Colour
 from discord.ext import commands, tasks
 from discord.ui import Button, View, Modal, TextInput
 from datetime import datetime, timedelta
+import json
 
 class RoleButton(Button):
     cooldown_users = {}
@@ -31,55 +32,6 @@ class RoleButton(Button):
         # Add a 10-second cooldown (can be adjusted)
         self.cooldown_users[interaction.user.id] = datetime.utcnow() + timedelta(seconds=10)
 
-class WelcomePageModal(Modal):
-    def __init__(self, bot, interaction, role_mapping):
-        super().__init__(title="Setup Welcome Page")
-        self.bot = bot
-        self.interaction = interaction
-        self.role_mapping = role_mapping
-
-        default_txt = [channel.name for channel in interaction.guild.text_channels]
-        default_txt_str = "\n".join(default_txt)
-        
-        self.channel_name = TextInput(label='Enter 1 channel name exactly as it appears',
-                                       style=discord.TextStyle.long,
-                                       placeholder='Welcome to our server! Please select your roles...',
-                                       default=f'Delete all text but the exact name of the channel \n {default_txt}',
-                                       min_length=1,
-                                       max_length=4000,
-                                       required=True)
-        self.message_input = TextInput(label='Enter the welcome message',
-                                       style=discord.TextStyle.long,
-                                       placeholder='Welcome to our server! Here is a list of rules. Please select your roles...',
-                                       min_length=1,
-                                       max_length=4000,
-                                       required=True)
-        
-        self.add_item(self.channel_name)
-        self.add_item(self.message_input)
-
-    async def on_submit(self, interaction):
-        welcome_msg = self.message_input.value
-        welcome_channel_name = self.channel_name.value
-        embed_cog = self.bot.get_cog("CreateEmbed")
-        channel = discord.utils.get(interaction.guild.text_channels, name=welcome_channel_name)
-        if not channel:
-            embed = await embed_cog.create_embed(title="Error", description="Please enter a valid channel name!", color=Colour.red())
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-
-        database_cog = self.bot.get_cog("Database")
-        await database_cog.set_channel_mapping(interaction.guild.id, welcome_channel_name, channel.name, channel.id, welcome_msg)
-        print(self.role_mapping)
-        try:
-            view = RulesView(self.bot, database_cog, interaction.guild.id, self.role_mapping)
-            await channel.send(content=welcome_msg, view=view)
-            embed = await embed_cog.create_embed(title="Success", description="Welcome page created successfully!", color=Colour.green())
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        except discord.errors.HTTPException as e:
-            error_embed = await embed_cog.create_embed(title="Error", description=str(e), color=Colour.red())
-            await interaction.response.send_message(embed=error_embed, ephemeral=True)
-
 
 class RulesView(View):
     def __init__(self, bot, database_cog, guild_id, role_mapping):
@@ -96,6 +48,79 @@ class RulesView(View):
 class WelcomeNewUser(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    class SetupModal(Modal):
+        def __init__(self, bot, interaction, role_mapping=None, channel=None, modal_type="welcome"):
+            super().__init__(title=f"Setup {modal_type.capitalize()} Page")
+            self.bot = bot
+            self.interaction = interaction
+            self.role_mapping = role_mapping
+            self.channel = channel
+            self.modal_type = modal_type
+
+            self.message_input1 = TextInput(label='Enter the first message',
+                                            style=discord.TextStyle.long,
+                                            placeholder='First message...',
+                                            min_length=1,
+                                            max_length=4000,
+                                            required=True)
+            self.message_input2 = TextInput(label='Enter the second message',
+                                            style=discord.TextStyle.long,
+                                            placeholder='Second message...',
+                                            min_length=1,
+                                            max_length=4000,
+                                            required=True)
+            self.message_input3 = TextInput(label='Enter the third message',
+                                            style=discord.TextStyle.long,
+                                            placeholder='Third message...',
+                                            min_length=1,
+                                            max_length=4000,
+                                            required=True)
+            self.message_input4 = TextInput(label='Enter the fourth message',
+                                            style=discord.TextStyle.long,
+                                            placeholder='Fourth message...',
+                                            min_length=1,
+                                            max_length=4000,
+                                            required=True)
+
+            self.add_item(self.message_input1)
+            self.add_item(self.message_input2)
+            self.add_item(self.message_input3)
+            self.add_item(self.message_input4)
+
+        async def on_submit(self, interaction):
+            embed_cog = self.bot.get_cog("CreateEmbed")
+            database_cog = self.bot.get_cog("Database")
+            support_cog = self.bot.get_cog("Support")
+
+            msg1 = self.message_input1.value
+            msg2 = self.message_input2.value
+            msg3 = self.message_input3.value
+            msg4 = self.message_input4.value
+
+            fields = [("Field 1", msg1, True),
+                    ("Field 2", msg2, True),
+                    ("Field 3", msg3, True),
+                    ("Field 4", msg4, True)]
+            embed_data = {
+                "title": f"{self.modal_type.capitalize()} Page Setup",
+                "description": f"{self.modal_type.capitalize()} page has been set up successfully!",
+                "color": Colour.green().value,
+                "fields": fields
+            }
+            embed = await embed_cog.create_embed(**embed_data)
+            embed_data_str = json.dumps(embed_data)
+
+            if self.modal_type == "welcome":
+                view = RulesView(self.bot, database_cog, interaction.guild.id, self.role_mapping)
+                sent_message = await self.channel.send(embed=embed, view=view)
+                await interaction.response.send_message("Welcome page has been set up successfully!", ephemeral=True)
+            else:
+                view = support_cog.TicketButton(self.bot, interaction)
+                sent_message = await self.channel.send(embed=embed, view=view)
+                await interaction.response.send_message("Support page has been set up successfully!", ephemeral=True)
+
+            await database_cog.set_channel_mapping(interaction.guild.id, self.channel.name, self.channel.name, self.channel.id, embed_data_str, sent_message.id)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):

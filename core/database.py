@@ -56,16 +56,18 @@ class Database(commands.Cog):
                     channel_display_name TEXT PRIMARY KEY,
                     channel_name TEXT,
                     channel_id INTEGER,
-                    message TEXT
+                    message TEXT,
+                    message_id INTEGER
                 )
             """)
-            # Setup table for showcase voting
+            # Setup table for showcase
             await self.c.execute(f"""
-                CREATE TABLE IF NOT EXISTS votes(
-                    post_id INTEGER,
+                CREATE TABLE IF NOT EXISTS showcase(
+                    message_id INTEGER,
                     user_id INTEGER,
-                    vote_type TEXT,
-                    PRIMARY KEY(post_id, user_id)
+                    vote_ups TEXT,
+                    vote_downs TEXT,
+                    PRIMARY KEY(message_id, user_id)
                 )
             """)
             # Setup table for user info
@@ -188,12 +190,13 @@ class Database(commands.Cog):
             print(f"Error in get_server_role: {e}")
             return None
 
-    async def set_channel_mapping(self, guild_id, channel_display_name, channel_name, channel_id, message):
+    async def set_channel_mapping(self, guild_id, display_name, channel_name, channel_id, message, message_id):
         try:
+            table_name = f"channelmapping_{guild_id}"
             await self.c.execute(f"""
-                INSERT OR REPLACE INTO channelmapping_{guild_id}(channel_display_name, channel_name, channel_id, message)
-                VALUES (?, ?, ?, ?)
-            """, (channel_display_name, channel_name, channel_id, message))
+                INSERT OR REPLACE INTO {table_name} (channel_display_name, channel_name, channel_id, message, message_id)
+                VALUES (?, ?, ?, ?, ?)
+            """, (display_name, channel_name, channel_id, message, message_id))
             await self.conn.commit()
         except Exception as e:
             print(f"Error setting channel mapping: {e}")
@@ -396,28 +399,31 @@ class Database(commands.Cog):
     async def add_vote(self, post_id, user_id, vote_type):
         try:
             # Check if the user has already voted on this post
-            await self.c.execute(f"SELECT * FROM votes WHERE post_id = ? AND user_id = ?", (post_id, user_id))
+            await self.c.execute(f"SELECT * FROM showcase WHERE message_id = ? AND user_id = ?", (post_id, user_id))
             data = await self.c.fetchone()
             if data:
-                return False  # Indicates the user has already voted
-            # If not, insert the new vote
-            await self.c.execute(f"INSERT INTO votes(post_id, user_id, vote_type) VALUES (?, ?, ?)", (post_id, user_id, vote_type))
+                # Update the existing vote
+                await self.c.execute(f"UPDATE showcase SET {vote_type} = 1 WHERE message_id = ? AND user_id = ?", (post_id, user_id))
+            else:
+                # Insert a new vote
+                await self.c.execute(f"INSERT INTO showcase(message_id, user_id, vote_ups, vote_downs) VALUES (?, ?, ?, ?)",
+                                    (post_id, user_id, 1 if vote_type == "vote_ups" else 0, 1 if vote_type == "vote_downs" else 0))
             await self.conn.commit()
-            return True  # Indicates the vote was added
+            return True  # Indicates the vote was added or updated
         except Exception as e:
             print(f"Error: {e}")
             return False
         
     async def get_vote_count_for_post(self, post_id, vote_type):
-        await self.c.execute(f"SELECT COUNT(*) FROM votes WHERE post_id = ? AND vote_type = ?", (post_id, vote_type))
+        await self.c.execute(f"SELECT COUNT(*) FROM showcase WHERE message_id = ? AND {vote_type} = 1", (post_id,))
         data = await self.c.fetchone()
         return data[0] if data else 0
 
     async def is_leading_post(self, post_id):
-        await self.c.execute(f"SELECT post_id, COUNT(*) as vote_count FROM votes WHERE vote_type = 'up' GROUP BY post_id ORDER BY vote_count DESC LIMIT 1")
+        await self.c.execute(f"SELECT message_id, COUNT(*) as vote_count FROM showcase WHERE vote_ups = 1 GROUP BY message_id ORDER BY vote_count DESC LIMIT 1")
         data = await self.c.fetchone()
         return data[0] == post_id if data else False
-    
+
     async def get_channel_display_names(self, guild_id):
         try:
             await self.c.execute(f"SELECT channel_display_name FROM channelmapping_{guild_id}")
@@ -480,6 +486,14 @@ class Database(commands.Cog):
             print(f"Error in update_channel_message: {e}")
             return False
 
+    async def get_channel_info(self, guild_id):
+        try:
+            await self.c.execute(f"SELECT channel_display_name, channel_id FROM channelmapping_{guild_id}")
+            data = await self.c.fetchall()
+            return [(item[0], item[1]) for item in data]  # Return a list of tuples (channel_display_name, channel_id)
+        except Exception as e:
+            print(f"Error in get_channel_info: {e}")
+            return []
 
 
     @commands.Cog.listener()
