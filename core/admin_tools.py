@@ -230,27 +230,29 @@ class AdminControls(commands.Cog):
         if message.author.bot:
             return
         db_cog = self.bot.get_cog('Database')
-        if not db_cog:
-            print("Database cog not found!")
-            return
-        if self.is_new_member(message.author):
+        not_silent = discord.utils.get(message.author.roles, name="Not Silent")
+        if not not_silent:
             try:
-                support_channel = await db_cog.get_support_channel_name(message.guild.id)
-                if not support_channel:
-                    print(f"No support channel found for guild {message.guild.name}.")
-                    return
-                # Check if the message is in the support channel
-                if message.channel.name == support_channel:
-                    return
                 # Check for keywords
                 keywords = ["help", "support", "assist", "pack", "how", "how", "how do i", "where", "where do",
                             "where do i", "what", "what do i", "install", "bought", "download", "purchase", "sorry",
                             "solve", "fix", "problem", "issue", "error", "bug", "glitch", "crash", "crashing"]
                 if any(keyword in message.content.lower() for keyword in keywords):
                     embed_data = {
-                        "title": "Support",
-                        "description": f"If you are looking for help or support, please go to the #{support_channel} channel.",
-                        "color": discord.Colour.blue()
+                        "title": "Need Help?",
+                        "description": (
+                                        "If you are looking for help or support, "
+                                        "please go to the #support channel and make a ticket. "
+                                        "No support will be given in general channels.\n\n"
+                                        "Need support on a pack purchased from MCModels? "
+                                        "You have to make a support ticket on their Discord. "
+                                        "We are not able to provide support here for MCModels packs.\n\n"
+                                        "Need help installing a pack? Check out #how-to-install and #faq.\n\n"
+                                        "Support for Patreon content is a PERK of being a Patron. "
+                                        "Link your Discord account to your Patreon account and you will be "
+                                        "automatically given a role for support tickets and teh #patreon channel."
+                                    ),
+                        "color": discord.Colour.red()
                     }
                     embed = await self.bot.get_cog("CreateEmbed").create_embed(None, **embed_data)
                     await message.reply(embed=embed)

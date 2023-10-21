@@ -160,7 +160,14 @@ class RankCore(commands.Cog):
             user = await db_cog.get_user(user_id, guild_id)
             guild = self.bot.get_guild(guild_id)
             member = guild.get_member(user_id)
-
+            if user['level'] == 2:
+                role = discord.utils.get(guild.roles, name="Not Silent")
+                if role:
+                    await member.add_roles(role)
+                    print(f"Assigned role 'Not Silent' to {member.name}.")
+                else:
+                    print("Role 'Not Silent' not found.")
+                 
             # Check if the user is below level 5
             if user['level'] < 5:
                 return
