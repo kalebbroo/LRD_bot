@@ -222,7 +222,7 @@ class AdminControls(commands.Cog):
         except Exception as e:
             print(f"Error setting permissions in channel {channel.name}: {e}")
 
-
+    # TODO: Fix this to only send the message to users below level 2
     @cooldown(1, 60, BucketType.user)
     @commands.Cog.listener()
     async def on_message(self, message):
