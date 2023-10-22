@@ -98,24 +98,35 @@ class WelcomeNewUser(commands.Cog):
             msg3 = self.message_input3.value
             msg4 = self.message_input4.value
 
-            fields = [("Field 1", msg1, True),
-                    ("Field 2", msg2, True),
-                    ("Field 3", msg3, True),
-                    ("Field 4", msg4, True)]
-            embed_data = {
-                "title": f"{self.modal_type.capitalize()} Page Setup",
-                "description": f"{self.modal_type.capitalize()} page has been set up successfully!",
-                "color": Colour.green().value,
-                "fields": fields
-            }
-            embed = await embed_cog.create_embed(**embed_data)
-            embed_data_str = json.dumps(embed_data)
-
             if self.modal_type == "welcome":
+                fields = [("Basic Common Sense", msg1, True),
+                        ("Admins and Bots", msg2, True),
+                        ("How to get Support", msg3, True),
+                        ("Server Specific Rules", msg4, True)]
+                embed_data = {
+                    "title": f"{self.modal_type.capitalize()} to the LittleRoomDev Official Discord Server!",
+                    "description": f"These are the server rules. Please read them carefully and click the buttons below to add or remove roles.",
+                    "color": Colour.green().value,
+                    "fields": fields
+                }
+                embed = await embed_cog.create_embed(**embed_data)
+                embed_data_str = json.dumps(embed_data)
                 view = RulesView(self.bot, database_cog, interaction.guild.id, self.role_mapping)
                 sent_message = await self.channel.send(embed=embed, view=view)
                 await interaction.response.send_message("Welcome page has been set up successfully!", ephemeral=True)
             else:
+                fields = [("Common Issues", msg1, True),
+                        ("Create A Support Ticket", msg2, True),
+                        ("Report A User", msg3, True),
+                        ("Commission Requests", msg4, True)]
+                embed_data = {
+                    "title": f"Welcome to the LittleRoomDev {self.modal_type.capitalize()} page!",
+                    "description": f"Before making a ticket or request please read the following, then click the approporate button below.",
+                    "color": Colour.green().value,
+                    "fields": fields
+                }
+                embed = await embed_cog.create_embed(**embed_data)
+                embed_data_str = json.dumps(embed_data)
                 view = support_cog.TicketButton(self.bot, interaction)
                 sent_message = await self.channel.send(embed=embed, view=view)
                 await interaction.response.send_message("Support page has been set up successfully!", ephemeral=True)
