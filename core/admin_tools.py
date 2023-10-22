@@ -230,8 +230,9 @@ class AdminControls(commands.Cog):
         if message.author.bot:
             return
         db_cog = self.bot.get_cog('Database')
-        not_silent = discord.utils.get(message.author.roles, name="Not Silent")
+        not_silent = discord.utils.get(message.author.roles, name="not silent")
         print(f"not_silent: {not_silent}")
+        print(f"message.author: {message.author.roles}")
         if not not_silent:
             try:
                 # Check for keywords

@@ -10,51 +10,51 @@ class Support(commands.Cog):
         self.bot = bot
         self.embed_cog = bot.get_cog("CreateEmbed")
 
-    """Redundency check for the support buttons. Will refresh the support message if the bot is restarted."""
+    # """Redundency check for the support buttons. Will refresh the support message if the bot is restarted."""
 
-    async def refresh_support_message(self, guild_id):
-        db_cog = self.bot.get_cog("Database")
-        create_embed_cog = self.bot.get_cog("CreateEmbed")
-        support_channel_name = await db_cog.get_support_channel(guild_id)
-        support_msg = await db_cog.get_support_message(guild_id, support_channel_name)
-        guild = self.bot.get_guild(guild_id)
-        print(f"Refreshing support message for {guild.name}.\n")
-        print(f"Support channel name: {support_channel_name}\n")
-        print(f"Support message: {support_msg}\n")
+    # async def refresh_support_message(self, guild_id):
+    #     db_cog = self.bot.get_cog("Database")
+    #     create_embed_cog = self.bot.get_cog("CreateEmbed")
+    #     support_channel_name = await db_cog.get_support_channel(guild_id)
+    #     support_msg = await db_cog.get_support_message(guild_id, support_channel_name)
+    #     guild = self.bot.get_guild(guild_id)
+    #     print(f"Refreshing support message for {guild.name}.\n")
+    #     print(f"Support channel name: {support_channel_name}\n")
+    #     print(f"Support message: {support_msg}\n")
         
-        if not support_channel_name:
-            print(f"No support channel set for {guild.name}. Skipping support message refresh.")
-            return
+    #     if not support_channel_name:
+    #         print(f"No support channel set for {guild.name}. Skipping support message refresh.")
+    #         return
         
-        if not support_msg or support_msg.strip() == "":
-            print(f"No support message set for {guild.name}. Skipping support message send.")
-            return
+    #     if not support_msg or support_msg.strip() == "":
+    #         print(f"No support message set for {guild.name}. Skipping support message send.")
+    #         return
         
-        # Fetch the channel ID from the database based on the channel's display name
-        support_channel_id = await db_cog.get_id_from_display(guild_id, support_channel_name)
-        support_channel = self.bot.get_channel(support_channel_id)
+    #     # Fetch the channel ID from the database based on the channel's display name
+    #     support_channel_id = await db_cog.get_id_from_display(guild_id, support_channel_name)
+    #     support_channel = self.bot.get_channel(support_channel_id)
         
-        if not support_channel:
-            print(f"No channel with ID {support_channel_id} found in {guild.name}")
-            return
+    #     if not support_channel:
+    #         print(f"No channel with ID {support_channel_id} found in {guild.name}")
+    #         return
         
-        # Create the embed
-        embed = await create_embed_cog.create_embed(
-            title="Support Channel Information",
-            description=support_msg,
-            color=discord.Colour.blue()
-        )
-        # Delete the last message in the support channel
-        try:
-            last_message = await support_channel.fetch_message(support_channel.last_message_id)
-            if last_message.author == self.bot.user:  # Ensure the last message was sent by the bot
-                await last_message.delete()
-        except Exception as e:
-            print(f"Error deleting the support message: {e}")
+    #     # Create the embed
+    #     embed = await create_embed_cog.create_embed(
+    #         title="Support Channel Information",
+    #         description=support_msg,
+    #         color=discord.Colour.blue()
+    #     )
+    #     # Delete the last message in the support channel
+    #     try:
+    #         last_message = await support_channel.fetch_message(support_channel.last_message_id)
+    #         if last_message.author == self.bot.user:  # Ensure the last message was sent by the bot
+    #             await last_message.delete()
+    #     except Exception as e:
+    #         print(f"Error deleting the support message: {e}")
         
-        # Repost the support message with the buttons
-        view = Support.TicketButton(self.bot, None)
-        await support_channel.send(embed=embed, view=view)
+    #     # Repost the support message with the buttons
+    #     view = Support.TicketButton(self.bot, None)
+    #     await support_channel.send(embed=embed, view=view)
 
 
 
