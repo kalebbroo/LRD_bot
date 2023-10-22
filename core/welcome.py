@@ -29,8 +29,8 @@ class RoleButton(Button):
             await interaction.user.add_roles(role)
             await interaction.response.send_message(f"Added {self.label} role!", ephemeral=True)
 
-        # Add a 10-second cooldown (can be adjusted)
-        self.cooldown_users[interaction.user.id] = datetime.utcnow() + timedelta(seconds=10)
+        # Add a 3-second cooldown (can be adjusted)
+        self.cooldown_users[interaction.user.id] = datetime.utcnow() + timedelta(seconds=3)
 
 
 class RulesView(View):
@@ -40,7 +40,6 @@ class RulesView(View):
         self.bot = bot
 
         for button_name, role_info in role_mapping.items():
-            #print(f"Adding button: {button_name}, Role ID: {role_info['role_id']}, Emoji: {role_info['emoji']}")
             # Pass the bot instance when creating the RoleButton
             self.add_item(RoleButton(self.bot, label=button_name, role_id=role_info['role_id'], emoji=role_info['emoji']))
 
