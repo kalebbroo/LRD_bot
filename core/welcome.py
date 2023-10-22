@@ -120,7 +120,8 @@ class WelcomeNewUser(commands.Cog):
                 sent_message = await self.channel.send(embed=embed, view=view)
                 await interaction.response.send_message("Support page has been set up successfully!", ephemeral=True)
 
-            await database_cog.set_channel_mapping(interaction.guild.id, self.channel.name, self.channel.name, self.channel.id, embed_data_str, sent_message.id)
+            await database_cog.set_channel_mapping(interaction.guild.id, self.channel.name.capitalize(), self.channel.name, self.channel.id, embed_data_str, sent_message.id)
+            # TODO: make the channel setup only choose the channel then it should set the display name as same as the channel just uppercase and the id as the channel id
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):

@@ -515,6 +515,21 @@ class Database(commands.Cog):
         except Exception as e:
             print(f"Error in get_all_message_ids: {e}")
             return []
+        
+    async def get_message_id_from_channel(self, guild_id, channel_display_name):
+        try:
+            query = f"""SELECT message_id FROM channelmapping_{guild_id}
+                        WHERE channel_display_name = ?"""
+            await self.c.execute(query, (channel_display_name,))
+            result = await self.c.fetchone()
+            if result:
+                return result[0]  # Return the message_id
+            else:
+                return None
+        except Exception as e:
+            print(f"Error in get_message_id_from_channel: {e}")
+            return None
+
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):

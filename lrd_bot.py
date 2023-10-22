@@ -46,27 +46,31 @@ async def register_views(bot):
             support_channel_id = await db_cog.get_id_from_display(guild_id, support_channel_name)
             if support_channel_id:
                 support_channel = bot.get_channel(support_channel_id)
-                support_message_id = await db_cog.get_support_message(guild_id, support_channel_name)
+                support_message_id = await db_cog.get_message_id_from_channel(guild_id, "Support")  # Call the new method here
                 if support_message_id:
                     support_message = await support_channel.fetch_message(support_message_id)
                     support_view = support_cog.TicketButton(bot, None)
                     await support_message.edit(view=support_view)
-                
+
         # For Welcome Messages
-        welcome_cog = bot.get_cog('Welcome')
+        welcome_cog = bot.get_cog('WelcomeNewUser')
         if welcome_cog:
-            welcome_channel_name = await db_cog.get_welcome_channel(guild_id)
-            welcome_channel_id = await db_cog.get_id_from_display(guild_id, welcome_channel_name)
+            welcome_channel_id = await db_cog.get_id_from_display(guild_id, 'Rules')
+            #print(f"Welcome channel ID: {welcome_channel_id}")
             if welcome_channel_id:
                 welcome_channel = bot.get_channel(welcome_channel_id)
-                welcome_message_id = await db_cog.get_welcome_message(guild_id)
-                if welcome_message_id:
-                    welcome_message = await welcome_channel.fetch_message(welcome_message_id)
-                    role_mapping, _ = await welcome_cog.get_role_mapping(guild_id)
-                    welcome_view = RulesView(bot, db_cog, guild_id, role_mapping)
-                    await welcome_message.edit(view=welcome_view)
+                role_mapping, _ = await welcome_cog.get_role_mapping(guild_id)
+                welcome_message_id = await db_cog.get_message_id_from_channel(guild_id, "Rules")
+                welcome_message = await welcome_channel.fetch_message(welcome_message_id)
+                # Edit the message view
+                view = RulesView(bot, db_cog, guild_id, role_mapping)
+                await welcome_message.edit(view=view)
+            else:
+                print("Welcome channel not found. Skipping.")
+        else:
+            print("Welcome cog not found. Skipping.")
 
-        print(f"Registered Views for guild {guild.name} with the bot.")
+        print(f"Refreshed persistant buttons for guild {guild.name} with {bot.user.name}.")
 
 
 @bot.event
