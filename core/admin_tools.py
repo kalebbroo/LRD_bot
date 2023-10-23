@@ -223,14 +223,14 @@ class AdminControls(commands.Cog):
             print(f"Error setting permissions in channel {channel.name}: {e}")
 
     # TODO: Fix this to only send the message to users below level 2
-    @cooldown(1, 60, BucketType.user)
+    @cooldown(1, 120, BucketType.user)
     @commands.Cog.listener()
     async def on_message(self, message):
         # Check if the message is from a bot
         if message.author.bot:
             return
         db_cog = self.bot.get_cog('Database')
-        not_silent = discord.utils.get(message.author.roles, name="not silent")
+        not_silent = discord.utils.get(message.author.roles, name="Not Silent")
         print(f"not_silent: {not_silent}")
         print(f"message.author: {message.author.roles}")
         if not not_silent:
