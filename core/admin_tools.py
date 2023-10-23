@@ -264,9 +264,7 @@ class AdminControls(commands.Cog):
                     }
                     embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
                     await message.reply(embed=embed)
-            except commands.CommandOnCooldown:
-                # If user is on cooldown, just ignore
-                pass
+                self.user_cooldowns[user_id] = current_time 
             except Exception as e:
                 print(f"Error replying to message in channel {message.channel.name}: {e}")
 
