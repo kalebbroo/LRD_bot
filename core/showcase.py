@@ -6,6 +6,7 @@ from discord import ButtonStyle
 import random
 import asyncio
 import io
+import re
 
 class Showcase(commands.Cog):
     def __init__(self, bot):
@@ -126,22 +127,21 @@ class Showcase(commands.Cog):
         if not showcase_channel_id or message.channel.id != showcase_channel_id:
             return
 
-        if not message.attachments or not message.content:
+        if not message.attachments and not message.content:
             await message.delete()
             embed_data = {
                 "title": "Invalid Showcase Post",
-                "description": "Your showcase post must include media and a description. Please try again.",
+                "description": "Your showcase post must include media or a description. Please try again.",
                 "color": discord.Color.red()
             }
             embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
             await message.author.send(embed=embed)
             return
 
-        last_post_time = await self.db.get_last_post_time(message.author.id, message.guild.id)
-        if last_post_time and datetime.utcnow() - last_post_time < timedelta(days=1):
-            await message.delete()
-            await message.author.send("You can only post once every 24 hours in the showcase channel.")
-            return
+        # Check if the message contains links to media
+        media_links = []
+        if message.content:
+            media_links = re.findall(r'(https?://\S+)', message.content)
 
         # Create the initial embed data
         embed_data = {
@@ -152,24 +152,21 @@ class Showcase(commands.Cog):
             "author_icon_url": message.author.avatar.url,
             "footer_text": f"Posted by {message.author.name}"
         }
+        # Attach uploaded media if available
+        if message.attachments:
+            image_data = await message.attachments[0].read()
+            file = discord.File(io.BytesIO(image_data), filename="showcase.jpg")
+            embed_data["image_url"] = f"attachment://showcase.jpg"
+
         admin_channel_id = await self.db.get_admin_channel(message.guild.id)
         if admin_channel_id:
             admin_channel = self.bot.get_channel(admin_channel_id)
-
-            # Send the image to the admin channel
-            image_data = await message.attachments[0].read()
-            file = discord.File(io.BytesIO(image_data), filename="showcase.jpg")
-            image_message = await admin_channel.send(file=file)
-
-            # Use the uploaded image URL for the embed
-            embed_data["image_url"] = image_message.attachments[0].url
-
             # Convert the embed_data to an actual embed
             embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
 
             # Send the embed to the admin channel for approval
             view = self.ApprovalButtons(self.bot, None, message, embed)
-            await admin_channel.send(embed=embed, view=view)
+            await admin_channel.send(embed=embed, file=file if "image_url" in embed_data else None, view=view)
 
             # Delete the original message
             await message.delete()
@@ -183,7 +180,7 @@ class Showcase(commands.Cog):
             embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
             await message.author.send(embed=embed)
         else:
-            await message.channel.send("Error finding admin channel. Report this error to an Admin.")
+            await message.channel.send("Error finding admin channel. Report this error to an Admin")
 
 
 async def setup(bot):
