@@ -157,35 +157,34 @@ class WelcomeNewUser(commands.Cog):
             embed = await embed_cog.create_embed(title="Welcome", description=f"Welcome to {member.guild.name}! Please check out {welcome_channel.mention} to get your roles.", color=Colour.blue())
             await member.send(embed=embed)
 
-    async def refresh_welcome_message(self, guild_id):
+    async def setup_message(self, guild_id):
         create_embed_cog = self.bot.get_cog("CreateEmbed")
         embed = await create_embed_cog.create_embed(
             title="Bot Setup Required",
-            description="""The bot has joined the server but it has not been set up.
-            Please use the `/setup` command to configure the bot. Or the `/help setup` command to see detailed instructions.
-            - First, you will need to create the role buttons and map a role to them. These are the buttons that users will click to get their roles.
-            - Second, you will need to map the channel names to the database. These are the channels where the messages will be posted.
-            - Third, you will need to set up the welcome/rules page. This message should explain the rules of the server and instruct users to click the buttons to get their roles.
-            - Lastly, you will need to add the FAQ entries. These are the FAQs that admins can send to users when they ask questions.
-            
-            **Bonus:** Retroactively add XP to users who have been active in the server before the bot was added. This should only be run once and is dangerous.
-
-            **Note:** The bot will not work until the setup is complete.
-            """,
+            description = (
+                "The bot has joined the server but it has not been set up.\n"
+                "Please use the `/setup` command to configure the bot. Or the `/help setup` command to see detailed instructions.\n"
+                "1. First, you will need to create the role buttons and map a role to them. These are the buttons that users will click to get their roles.\n"
+                "2. Second, you will need to map the channel names to the database. These are the channels where the messages will be posted.\n"
+                "3. Third, you will need to set up the welcome/rules page. This message should explain the rules of the server and instruct users to click the buttons to get their roles.\n"
+                "4. Lastly, you will need to add the FAQ entries. These are the FAQs that admins can send to users when they ask questions.\n\n"
+                "**Bonus:** Retroactively add XP to users who have been active in the server before the bot was added. This should only be run once and is dangerous.\n\n"
+                "**Note:** The bot will not work until the setup is complete."
+            ),
             footer_text="Please contact Kalebbroo if you need help.",
             color=discord.Colour.red()
         )
         guild = self.bot.get_guild(guild_id)
-        # Send the embed to users who have the admin role
+        # Send the embed to users who have the admin role and are not bots
         for member in guild.members:
-            for role in member.roles:
-                if role.name == "Admin":  # Replace with the name of the admin role
-                    try:
-                        await member.send(embed=embed)
-                    except discord.HTTPException:
-                        # Handle any exceptions that arise from sending the DM (e.g., DMs blocked)
-                        print(f"Failed to send DM to {member.name}")
-
+            if not member.bot:  # Check if the member is not a bot
+                for role in member.roles:
+                    if role.name == "Admin":
+                        try:
+                            await member.send(embed=embed)
+                        except discord.HTTPException:
+                            # Handle any exceptions that arise from sending the DM (e.g., DMs blocked)
+                            print(f"Failed to send DM to {member.name}")
 
     async def get_role_mapping(self, guild_id):
         db_cog = self.bot.get_cog("Database")
