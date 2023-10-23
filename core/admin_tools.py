@@ -9,6 +9,7 @@ import discord
 class AdminControls(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.user_cooldowns = {} 
         self.db = self.bot.get_cog("Database")
         self.embed_cog = self.bot.get_cog("CreateEmbed")
 
@@ -222,17 +223,21 @@ class AdminControls(commands.Cog):
         except Exception as e:
             print(f"Error setting permissions in channel {channel.name}: {e}")
 
-    # TODO: Fix this to only send the message to users below level 2
-    @cooldown(1, 120, BucketType.user)
     @commands.Cog.listener()
     async def on_message(self, message):
         # Check if the message is from a bot
         if message.author.bot:
             return
-        db_cog = self.bot.get_cog('Database')
+        user_id = message.author.id
+        current_time = datetime.now() 
+        # Check if the user is on cooldown
+        if user_id in self.user_cooldowns:
+            time_passed = current_time - self.user_cooldowns[user_id]
+            if time_passed < timedelta(seconds=120):
+                return
+
         not_silent = discord.utils.get(message.author.roles, name="Not Silent")
-        print(f"not_silent: {not_silent}")
-        print(f"message.author: {message.author.roles}")
+
         if not not_silent:
             try:
                 # Check for keywords
