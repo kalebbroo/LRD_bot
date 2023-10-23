@@ -152,21 +152,28 @@ class Showcase(commands.Cog):
             "author_icon_url": message.author.avatar.url,
             "footer_text": f"Posted by {message.author.name}"
         }
+        # Check for valid media links
+        valid_media_links = [link for link in media_links if any(extension in link for extension in ['.jpg', '.jpeg', '.png', '.gif', '.mp4'])]
+
+        if valid_media_links:
+            embed_data["image_url"] = valid_media_links[0]
+
         # Attach uploaded media if available
         if message.attachments:
             image_data = await message.attachments[0].read()
             file = discord.File(io.BytesIO(image_data), filename="showcase.jpg")
-            embed_data["image_url"] = f"attachment://showcase.jpg"
+            embed_data["image"] = f"attachment://showcase.jpg"
 
         admin_channel_id = await self.db.get_admin_channel(message.guild.id)
         if admin_channel_id:
             admin_channel = self.bot.get_channel(admin_channel_id)
+
             # Convert the embed_data to an actual embed
             embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
 
             # Send the embed to the admin channel for approval
             view = self.ApprovalButtons(self.bot, None, message, embed)
-            await admin_channel.send(embed=embed, file=file if "image_url" in embed_data else None, view=view)
+            await admin_channel.send(embed=embed, file=file if "image" in embed_data else None, view=view)
 
             # Delete the original message
             await message.delete()
