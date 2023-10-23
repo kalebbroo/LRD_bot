@@ -78,5 +78,25 @@ class AdminCommands(commands.Cog):
         embed = await self.embed_cog.create_embed(**embed_data)
         await ctx.send(embed=embed)
 
+    @commands.command(name="go_read", help="Removes the I can Read role from the user.")
+    @commands.has_permissions(administrator=True)
+    async def go_read_command(self, ctx):
+        """Removes the I can Read role from the user.
+            This will make the read the rules again.
+            All channel access will be removed"""
+        role = discord.utils.get(ctx.guild.roles, name="I can Read")
+        await ctx.author.remove_roles(role)
+        
+        embed_data = {
+            "title": "Please Read the Rules Again",
+            "description": "The I can Read role has been removed from you. " \
+                        "An admin has requested that you read the rules again. " \
+                        "Please read the rules again to get the I can Read role back. " \
+                        "You will not be able to access any channels until you do so.",
+            "color": discord.Color.green()
+        }
+        embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
+        await ctx.author.send(embed=embed)  # Sends the embed to the user's DM
+
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))

@@ -1,4 +1,3 @@
-from discord.ext.commands import BucketType, cooldown
 from discord import app_commands, Embed, Colour
 from datetime import datetime, timedelta
 from typing import List, Union
