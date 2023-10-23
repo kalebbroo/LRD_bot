@@ -67,6 +67,7 @@ async def register_views(bot):
                 await welcome_message.edit(view=view)
             else:
                 print("Welcome channel not found. Skipping.")
+                await welcome_cog.bot_setup_message(guild_id)
         else:
             print("Welcome cog not found. Skipping.")
 
