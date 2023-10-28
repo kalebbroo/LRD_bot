@@ -35,9 +35,13 @@ async def register_views(bot):
                 channel_id = channel_dict.get("Showcase")
                 if channel_id:
                     channel = bot.get_channel(channel_id)
-                    message = await channel.fetch_message(message_id)
-                    vote_buttons = showcase_cog.VoteButtons(bot, message)
-                    await message.edit(view=vote_buttons)
+                    try:
+                        message = await channel.fetch_message(message_id)
+                        vote_buttons = showcase_cog.VoteButtons(bot, message)
+                        await message.edit(view=vote_buttons)
+                    except discord.errors.NotFound:
+                        print(f"Message {message_id} not found in channel {channel_id}. Skipping.")
+                        continue
         
         # For Support Messages
         support_cog = bot.get_cog('Support')

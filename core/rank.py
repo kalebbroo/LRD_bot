@@ -155,6 +155,10 @@ class RankCore(commands.Cog):
         """
         Announce the level up for a user and display their new rank card.
         """
+        showcase_channel_id = await self.bot.get_cog('Database').get_id_from_display(guild_id, "Showcase")
+        # If the channel is the showcase channel, don't post the level-up message
+        if channel_id == showcase_channel_id:
+            return
         try:
             db_cog = self.bot.get_cog('Database')
             user = await db_cog.get_user(user_id, guild_id)
