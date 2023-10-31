@@ -12,7 +12,7 @@ class AdminControls(commands.Cog):
         self.db = self.bot.get_cog("Database")
         self.embed_cog = self.bot.get_cog("CreateEmbed")
 
-    async def cog_check(self, ctx):
+    async def cog_check(self, ctx) -> bool: 
         """Check if the command invoker has admin permissions."""
         return ctx.author.guild_permissions.administrator
     
@@ -34,6 +34,8 @@ class AdminControls(commands.Cog):
                 for channel in interaction.guild.channels:
                     await channel.set_permissions(role, speak=False, send_messages=False)
             await user.add_roles(role, reason=reason)
+            # Update the database to reflect the mute
+            await self.db.handle_user(interaction.guild.id, "update", user.id, {'warnings': f"Muted: {reason}"})
             embed_data = {
                 "title": "Mute",
                 "description": f"{user.mention} has been muted.",
@@ -78,7 +80,6 @@ class AdminControls(commands.Cog):
             embed = await self.embed_cog.create_embed(interaction, **embed_data)
             await interaction.followup.send(embed=embed, ephemeral=True)
 
-    # TODO: fix mod log db entry
     @app_commands.command(name='kick', description='Kick a member from the server')
     @app_commands.describe(user='The member to kick', reason='The reason for the kick')
     async def kick(self, interaction, user: discord.Member, reason: str):
@@ -87,6 +88,7 @@ class AdminControls(commands.Cog):
         try:
             await user.kick(reason=reason)
             
+            # Create an embed for the kick
             embed_data = {
                 "title": "Kick",
                 "description": f"{user.mention} has been kicked for {reason}.",
@@ -95,7 +97,9 @@ class AdminControls(commands.Cog):
             embed = await self.embed_cog.create_embed(interaction, **embed_data)
             await interaction.followup.send(embed=embed)
             
-            #await self.db.add_moderation_log(interaction.guild.id, "kick", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
+            # Add an entry to the mod log in the database
+            await self.db.handle_user(interaction.guild.id, "update", user.id, {'warnings': reason})
+            
         except Exception as e:
             embed_data = {
                 "title": "Error",
@@ -123,7 +127,8 @@ class AdminControls(commands.Cog):
             embed = await self.embed_cog.create_embed(interaction, **embed_data)
             await interaction.followup.send(embed=embed)
             
-            await self.db.add_moderation_log(interaction.guild.id, "ban", user.id, interaction.user.id, reason, datetime.utcnow().timestamp())
+            # Update the database to reflect the ban
+            await self.db.handle_user(interaction.guild.id, "update", user.id, {'warnings': f"Banned: {reason}"})
         except Exception as e:
             embed_data = {
                 "title": "Error",
@@ -183,11 +188,11 @@ class AdminControls(commands.Cog):
         return choices
 
     async def channels_autocomplete(interaction: discord.Interaction, current: str, value: str = None) -> List[app_commands.Choice[str]]:
-        # Fetch mapped channels from the database
-        mapped_channels_ids = await interaction.bot.get_cog('Database').get_mapped_channels_from_db(interaction.guild.id)
+        # Fetch mapped channels from the database using the new handle_channel method
+        channel_info = await interaction.bot.get_cog('Database').handle_channel(interaction.guild.id, "get_channel_info")
         
         # Convert IDs to channel objects
-        mapped_channels = [interaction.guild.get_channel(channel_id) for channel_id in mapped_channels_ids]
+        mapped_channels = [interaction.guild.get_channel(channel_id) for display_name, channel_id in channel_info]
         
         return [
             app_commands.Choice(name=channel.name, value=channel.name)
@@ -279,8 +284,8 @@ class AdminControls(commands.Cog):
         if not not_silent:
             try:
                 # Check for keywords
-                keywords = ["help", "support", "assist", "pack", "how", "fix", "where", "why",
-                            "what", "install", "bought", "download", "purchase", "sorry",
+                keywords = ["help", "support", "assist", "pack", "how", "fix", "ia", "itemsadder",
+                            "install", "bought", "download", "purchase", "sorry",
                             "solve", "fix", "problem", "issue", "error", "bug", "glitch", "crash", "crashing",
                             "mcmodels", "buy", "patreon", "npc", "citizens", "mythicmobs", "modelengine", "meg", "meg4",]
                 if any(keyword in message.content.lower() for keyword in keywords):
