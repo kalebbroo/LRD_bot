@@ -38,11 +38,9 @@ class RulesView(View):
         super().__init__(timeout=None)
         self.database = database_cog
         self.bot = bot
-
+        # Get the role mapping from the database
         for button_name, role_info in role_mapping.items():
-            # Pass the bot instance when creating the RoleButton
             self.add_item(RoleButton(self.bot, label=button_name, role_id=role_info['role_id'], emoji=role_info['emoji']))
-
 
 class WelcomeNewUser(commands.Cog):
     def __init__(self, bot):
@@ -135,11 +133,11 @@ class WelcomeNewUser(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        db_cog = self.bot.get_cog("Database")
-        embed_cog = self.bot.get_cog("CreateEmbed")
-        # Get the channel name set in the database
-        welcome_channel_name = await db_cog.get_welcome_channel(member.guild.id)
-        # If there's no channel set, enter the default fallback channel name. This can be changed to whatever you want.
+        db_cog = self.bot.get_cog("Database")  # Database cog
+        embed_cog = self.bot.get_cog("CreateEmbed")  # Embed creation cog
+
+        # Using the new method to get the welcome channel
+        welcome_channel_name = await db_cog.handle_channel(member.guild.id, "get_welcome_channel")
         if not welcome_channel_name:
             welcome_channel_name = "rules"
 
@@ -186,20 +184,19 @@ class WelcomeNewUser(commands.Cog):
                             # Handle any exceptions that arise from sending the DM (e.g., DMs blocked)
                             print(f"Failed to send DM to {member.name}")
 
-    async def get_role_mapping(self, guild_id):
+    async def get_role_mapping(self, guild_id: int) -> Tuple[Dict[str, Dict[str, str]], List[str]]:
         db_cog = self.bot.get_cog("Database")
-        
-        button_names = await db_cog.get_button_names(guild_id)
-        unmapped_buttons = []
         role_mapping = {}
+        unmapped_buttons = []
 
-        for btn_name in button_names:
-            role_info = await db_cog.get_server_role(guild_id, btn_name)
+        # Fetch all the button names mapped in the database for this guild
+        button_display_names = await db_cog.handle_server_role(guild_id, "get_all_button_names")
+
+        for btn_name in button_display_names:
+            role_info = await db_cog.handle_server_role(guild_id, "get", button_name=btn_name)
             if role_info:
-                #print(f"Found mapping for {btn_name}")
                 role_mapping[btn_name] = {'role_id': role_info['role_id'], 'emoji': role_info['emoji']}
             else:
-                print(f"Did not find mapping for {btn_name}")
                 unmapped_buttons.append(btn_name)
 
         return role_mapping, unmapped_buttons
