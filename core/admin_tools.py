@@ -175,19 +175,58 @@ class AdminControls(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
             print(f"An error occurred: {e}")
 
-    # TODO: have the channels and roles populated from the database
+    async def roles_autocomplete(interaction: discord.Interaction, current: str, value: str = None) -> List[app_commands.Choice[str]]:
+        print("Roles Autocomplete Triggered")
+        roles = interaction.guild.roles
+        choices = [app_commands.Choice(name=role.name, value=role.name) for role in roles if current.lower() in role.name.lower()]
+        print("Choices:", choices)
+        return choices
+
+    async def channels_autocomplete(interaction: discord.Interaction, current: str, value: str = None) -> List[app_commands.Choice[str]]:
+        # Fetch mapped channels from the database
+        mapped_channels_ids = await interaction.bot.get_cog('Database').get_mapped_channels_from_db(interaction.guild.id)
+        
+        # Convert IDs to channel objects
+        mapped_channels = [interaction.guild.get_channel(channel_id) for channel_id in mapped_channels_ids]
+        
+        return [
+            app_commands.Choice(name=channel.name, value=channel.name)
+            for channel in mapped_channels if current.lower() in channel.name.lower()
+        ]
+    
+    async def fruit_autocomplete(
+        interaction: discord.Interaction,
+        current: str, value: str = None) -> List[app_commands.Choice[str]]:
+        fruits = ['Banana', 'Pineapple', 'Apple', 'Watermelon', 'Melon', 'Cherry']
+        return [
+            app_commands.Choice(name=fruit, value=fruit)
+            for fruit in fruits if current.lower() in fruit.lower()
+        ]
+
     @app_commands.command(name='announcement', description='Post an announcement in a specified channel')
     @app_commands.describe(
-        title="Title of the Announcement",
-        message="Content of the Announcement",
-        channel="The channel where the announcement should be posted",
-        tag_a_role="Roles to tag in the announcement (optional)",
-        media_url="URL of the media to be displayed (optional)"
-    )
+                title="Title of the Announcement",
+                message="Content of the Announcement",
+                channel="The channel where the announcement should be posted",
+                tag_a_role="Roles to tag in the announcement (optional)",
+                media_url="URL of the media to be displayed (optional)"
+            )
+    @app_commands.autocomplete(tag_a_role=roles_autocomplete)  # Autocomplete for roles
+    @app_commands.autocomplete(channel=channels_autocomplete)  # Autocomplete for channels
+    @app_commands.autocomplete(fruit=fruit_autocomplete)
     @app_commands.checks.has_permissions(administrator=True)
-    async def announcement(self, interaction, title: str, message: str, channel: discord.TextChannel, 
-                        tag_a_role: discord.Role = None, media_url: str = None):
+    async def announcement(self, interaction, title: str, message: str, channel: str, 
+                            tag_a_role: str = None, media_url: str = None, fruit: str = None):
         await interaction.response.defer(ephemeral=True)
+
+        # Convert channel_name to discord.TextChannel
+        channel = discord.utils.get(interaction.guild.text_channels, name=channel)
+        if channel is None:
+            await interaction.followup.send("Invalid channel name", ephemeral=True)
+            return
+
+        # Convert tag_a_role to discord.Role
+        tag_a_role = discord.utils.get(interaction.guild.roles, name=tag_a_role) if tag_a_role else None
 
         # Check if the user attached any media
         if interaction.message and interaction.message.attachments:
