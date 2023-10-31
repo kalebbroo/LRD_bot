@@ -9,6 +9,8 @@ class Support(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.embed_cog = bot.get_cog("CreateEmbed")
+        self.db = bot.get_cog("Database")
+        # TODO: Maybe make a db entry for userswhen they make a ticket? Just to keep track?
 
     class TicketButton(View):
         def __init__(self, bot, interaction):
@@ -172,19 +174,19 @@ class Support(commands.Cog):
                                         required=True)
             self.add_item(self.reason_input)
 
-        async def on_submit(self, interaction):
-            # Get the Database cog
-            db_cog = self.bot.get_cog("Database")
-            # Fetch all display names from the database
-            all_display_names = await db_cog.get_channel_display_names(self.guild_id)
+        async def on_submit(self, interaction: discord.Interaction):
+            # Fetch all display names from the database using the new handle_channel method
+            all_display_names = await self.db.handle_channel(self.guild_id, "get_display_names")
+            
             # Find the first display name that contains 'admin' or 'staff'
             staff_channel_name = next((name for name in all_display_names if 'admin' in name.lower() or 'staff' in name.lower()), None)
-
-            # TODO: Change the channel to be from the mapped channels from the db.
             
             if staff_channel_name:
-                # Fetch the corresponding channel ID from the database
-                staff_channel_id = await db_cog.get_id_from_display(self.guild_id, staff_channel_name)
+                # Fetch channel info from the database using the new handle_channel method
+                channel_info = await self.db.handle_channel(self.guild_id, "get_channel_info")
+                
+                # Find the channel ID corresponding to the staff_channel_name
+                staff_channel_id = next((channel_id for display_name, channel_id in channel_info if display_name == staff_channel_name), None)
                 staff_channel = self.bot.get_channel(staff_channel_id)
             else:
                 await interaction.response.send_message("No admin or staff channel found.", ephemeral=True)
@@ -252,38 +254,47 @@ class Support(commands.Cog):
                                         max_length=4000,
                                         required=True)
             self.add_item(self.details_input)
-        async def on_submit(self, interaction):
-            # Capture the input values
-            product_name = self.product_name_input.value
-            server_version = self.server_version_input.value
-            plugin_versions = self.plugin_versions_input.value
-            details = self.details_input.value
 
-            db_cog = self.bot.get_cog("Database")
-
-            # Get the Support channel display name
-            support_channel_name = await db_cog.get_support_channel(interaction.guild.id)
+        async def on_submit(self, interaction: discord.Interaction):
+            """
+            Asynchronously handles the submission of a support ticket.
+            """
+            # Capture the input values from the interactive components
+            product_name: str = self.product_name_input.value  # Product name from the input component
+            server_version: str = self.server_version_input.value  # Server version from the input component
+            plugin_versions: str = self.plugin_versions_input.value  # Plugin versions from the input component
+            details: str = self.details_input.value  # Additional details from the input component
             
+            # Get the support channel display name from the database
+            support_channel_name: str = await self.db.handle_channel(
+                interaction.guild.id, 'get_support_channel'
+            )
             if support_channel_name:
-                # Get the Support channel ID from its display name
-                support_channel_id = await db_cog.get_id_from_display(interaction.guild.id, support_channel_name)
-                
-                # Get the Support channel object
-                support_channel = self.bot.get_channel(support_channel_id)
+                # If a support channel exists, fetch its ID from the database
+                support_channel_info = await self.db.handle_channel(
+                    interaction.guild.id, 'get_channel_info'
+                )
+                # Search for the support channel ID based on its name
+                support_channel_id = next(
+                    (info[1] for info in support_channel_info if info[0] == support_channel_name), None
+                )
+                # Get the discord.Channel object corresponding to the support channel
+                support_channel: discord.TextChannel = self.bot.get_channel(support_channel_id)
             else:
+                # If no support channel is found, send an ephemeral message and exit the function
                 await interaction.followup.send("No Support channel found.", ephemeral=True)
                 return
             
-            # Create a private thread for the ticket
-            thread = await support_channel.create_thread(
+            # Create a private thread in the support channel for the ticket
+            thread: discord.Thread = await support_channel.create_thread(
                 name=f"{self.ticket_type}-ticket-{interaction.user.name}",
                 type=discord.ChannelType.private_thread
             )
-            # Notify the user that the ticket has been submitted
+            # Send an ephemeral message to the user to acknowledge the submission
             await interaction.response.send_message("Your ticket has been submitted.", ephemeral=True)
 
-            # Send an embed to the thread with the provided details
-            embed = await self.bot.get_cog("CreateEmbed").create_embed(
+            # Create an embed message to summarize the ticket details
+            embed: discord.Embed = await self.bot.get_cog("CreateEmbed").create_embed(
                 title=f"New {self.ticket_type} Ticket",
                 color=discord.Colour.blue(),
                 fields=[
@@ -293,8 +304,10 @@ class Support(commands.Cog):
                     ("Additional Details", details, False)
                 ]
             )
+            # Send the embed message to the newly created thread
             await thread.send(embed=embed)
-            # Notify the user that they can upload any additional images or logs in the thread
+            
+            # Notify the user that they can upload additional details in the thread
             await thread.send(f"{interaction.user.mention}, you can upload any images or logs needed here.")
 
     class SupportMessageModal(Modal):
@@ -314,20 +327,18 @@ class Support(commands.Cog):
             )
             self.add_item(self.message_input)
 
-        async def on_submit(self, interaction):
+        async def on_submit(self, interaction: discord.Interaction) -> None:
             await interaction.response.defer(ephemeral=True)
             support_msg = self.message_input.value
-            db_cog = self.bot.get_cog("Database")
-            channel_id = await db_cog.get_id_from_display(self.guild_id, self.channel_display_name)
-            channel = self.bot.get_channel(channel_id)
-            print(f"Updating the message for {self.channel_display_name} in {channel.name}.")
 
-            # Update the message in the database
-            update_success = await db_cog.update_channel_message(self.guild_id, self.channel_display_name, support_msg)
-            if update_success:
-                print(f"Successfully updated the message for {self.channel_display_name} in the database.")
-            else:
-                print(f"Failed to update the message for {self.channel_display_name} in the database.")
+            # Fetch the channel ID using the new database function
+            channel_id = await self.db.handle_channel(self.guild_id, "get_channel_info", display_name=self.channel_display_name)
+            
+            # Fetch the channel object
+            channel = self.bot.get_channel(channel_id)
+
+            # Update the message in the database using the new database function
+            await self.db.handle_channel(self.guild_id, "update_channel_message", display_name=self.channel_display_name, message=support_msg)
 
             # Create the view with buttons for the support ticket system
             view = Support.TicketButton(self.bot, interaction)
