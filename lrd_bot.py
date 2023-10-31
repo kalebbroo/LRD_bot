@@ -50,7 +50,7 @@ async def register_views(bot):
             support_channel_id = await db_cog.get_id_from_display(guild_id, support_channel_name)
             if support_channel_id:
                 support_channel = bot.get_channel(support_channel_id)
-                support_message_id = await db_cog.get_message_id_from_channel(guild_id, "Support")  # Call the new method here
+                support_message_id = await db_cog.get_message_id_from_channel(guild_id, "Support")
                 if support_message_id:
                     support_message = await support_channel.fetch_message(support_message_id)
                     support_view = support_cog.TicketButton(bot, None)
@@ -60,7 +60,6 @@ async def register_views(bot):
         welcome_cog = bot.get_cog('WelcomeNewUser')
         if welcome_cog:
             welcome_channel_id = await db_cog.get_id_from_display(guild_id, 'Rules')
-            #print(f"Welcome channel ID: {welcome_channel_id}")
             if welcome_channel_id:
                 welcome_channel = bot.get_channel(welcome_channel_id)
                 role_mapping, _ = await welcome_cog.get_role_mapping(guild_id)
@@ -93,7 +92,7 @@ async def on_ready():
 
 @bot.event
 async def on_command_error(ctx, error):
-    # handle your errors here
+    # handle command errors here
     if isinstance(error, commands.CommandNotFound):
         await ctx.send(f"Command not found. Use {bot.command_prefix}help to see available commands.")
     else:

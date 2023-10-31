@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands, tasks
-from discord import app_commands, Embed, Colour
-from discord.ui import Modal, TextInput, Select
+from discord import app_commands, Colour, Message, Reaction, User, Member, VoiceState
 from discord.app_commands import Choice
 from datetime import datetime
 import asyncio
@@ -56,119 +55,166 @@ class XPCore(commands.Cog):
             if xp is None:
                 print(f"XP value is None for user ID {user_id} in guild {guild_id}.")
                 return
-            user = await self.db_cog.get_user(user_id, guild_id)
+            # Fetch the user data from the database using the new db_cog's handle_user method
+            user = await self.db_cog.handle_user(guild_id, "get", user_id=user_id)
+            # Check for a current event that might modify XP
             if self.current_event is not None and self.current_event['name'] == "Double XP Day":
                 xp = self.current_event['bonus'](xp)
+
+            # Update XP and round it
             user['xp'] += xp
             user['xp'] = round(user['xp'])
+            # Update message count and fetch user name
             count = user['message_count']
             name = self.bot.get_user(user_id).display_name
+
+            # Calculate the user's level based on their XP
             level = 1
             while user['xp'] >= ((1.2 ** level - 1) * 100) / 0.2:
                 level += 1
+            # Update the level if it has increased
             if level > user['level']:
                 user['level'] = level
                 await self.bot.get_cog('RankCore').level_up(user_id, guild_id, channel_id)
+
+            # Calculate the XP required for the next level
             next_level_xp = ((1.2 ** (user['level'] + 1) - 1) * 100) / 0.2
             xp_to_next_level = math.ceil(next_level_xp - user['xp'])
+            # Print the user's stats
             print(f"{name} has {user['xp']} XP and is at level {user['level']}. They just gained {xp} XP.")
             print(f"They need {xp_to_next_level} more XP to level up. They have sent {count} messages.")
-            await self.db_cog.update_user(user, guild_id)
+            # Update the user data in the database
+            await self.db_cog.handle_user(guild_id, "update", user_data=user)
+
         except Exception as e:
             print(f"Error in add_xp: {e}")
 
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: Message):
         """
         Listener to handle when a message is sent. Add XP to the user.
         """
         try:
             if message.author.bot:
                 return
-             # Check if the message is a command
+            # Check if the message is a command
             ctx = await self.bot.get_context(message)
             if ctx.valid:
                 return  # Don't process XP for commands
+            
             user_id = message.author.id
             guild_id = message.guild.id
-            user = await self.db_cog.get_user(user_id, guild_id)
+            
+            # Fetch user data from database
+            user = await self.db_cog.handle_user(guild_id, 'get', user_id=user_id)
             if user is None:
                 print(f"user was a bot or not in the database")
                 return 
+            
+            # Generate random XP
             xp = random.randint(5, 50)
             print(f"Adding {xp} XP to user {user_id}")
+            # Add xp to the user
             await self.add_xp(user_id, guild_id, xp, message.channel.id)
-            updated_user = await self.db_cog.get_user(user_id, guild_id)
+
+            # Fetch updated user data from database
+            updated_user = await self.db_cog.handle_user(guild_id, 'get', user_id=user_id)
             print(f"User {user_id} now has {updated_user['xp']} XP")
         except Exception as e:
             print(f"Error in on_message: {e}")
 
     @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user):
+    async def on_reaction_add(self, reaction: Reaction, user: User):
         """
         Listener to handle when a reaction is added. Add XP to the user.
         """
         try:
             if user == self.bot.user:
-                return
+                return  # Ignore reactions by the bot
+            # User and guild IDs
             user_id = user.id
             guild_id = reaction.message.guild.id
-            user = await self.db_cog.get_user(user_id, guild_id)
-            user['emoji_count'] += 1  # Increment emoji count
-            if user_id not in self.last_reaction_time:
-                self.last_reaction_time[user_id] = -math.inf
-            if time.time() - self.last_reaction_time[user_id] < 0.5:  # If the user is spamming reactions
-                user['xp'] -= 100  # Remove 100 XP
+            
+            # Fetch user data from the database
+            user_data = await self.db_cog.handle_user(guild_id, 'get', user_id=user_id)
+            # Increment emoji count
+            user_data['emoji_count'] += 1
+            
+            # Check for spamming reactions
+            last_time = self.last_reaction_time.get(user_id, -math.inf)
+            if time.time() - last_time < 0.5:
+                user_data['xp'] -= 100  # Deduct XP for spamming
                 await reaction.message.channel.send(f"{user.mention} Stop spamming reactions! 100 XP has been deducted from your total.", ephemeral=True)
+            
+            # Update the last reaction time
             self.last_reaction_time[user_id] = time.time()
-            await self.db_cog.update_user(user, guild_id)
-            xp = 1  # Define xp before using it
+            # Update user data in the database
+            await self.db_cog.handle_user(guild_id, 'update', user_data=user_data)
+            
+            # Define XP value for a reaction
+            xp = 1
+            
+            # Check for any special events
             if self.current_event is not None and self.current_event['name'] == "Emoji Madness":
                 xp = self.current_event['bonus'](xp)
-            await self.add_xp(user_id, guild_id, xp, reaction.message.channel.id)  # Add 1 XP for the reaction
+            # Add XP (You may call your add_xp function here)
+            await self.add_xp(user_id, guild_id, xp, reaction.message.channel.id)
+            
         except Exception as e:
             print(f"Error in on_reaction_add: {e}")
 
     @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
+    async def on_voice_state_update(self, member: Member, before: VoiceState, after: VoiceState):
         """
         Listener to handle voice state updates. Handle XP when a user joins or leaves a voice channel.
         """
         try:
+            # Initialize XP value
             xp = 10  # Set a base XP value
+            # Check if there is a current event that modifies the XP
             if self.current_event is not None and self.current_event['name'] == "Voice Chat Vibes":
                 xp = self.current_event['bonus'](xp)
-            if not before.self_stream and after.self_stream:  # The member started streaming
+
+            # User started streaming
+            if not before.self_stream and after.self_stream:
                 user_id = member.id
                 guild_id = member.guild.id
                 channel_id = after.channel.id
-                self.voice_channels[channel_id] = {'streamer': user_id, 'watchers': []}  # Initialize the channel state
-                await self.add_xp(user_id, guild_id, 10, channel_id)  # Add 10 XP for starting a stream
-                if self.stream_check_task is None:  # If the background task is not running
-                    self.stream_check_task = self.bot.loop.create_task(self.check_streams())  # Start the background task
-            elif before.self_stream and not after.self_stream:  # The member stopped streaming
+
+                # Update the channel state with the new streamer
+                self.voice_channels[channel_id] = {'streamer': user_id, 'watchers': []}
+                # Fetch the user's data from the database
+                user_data = await self.db_cog.handle_user(guild_id, "get", user_id)
+                # Update XP and save it back to the database
+                user_data['xp'] += 10
+                await self.db_cog.handle_user(guild_id, "update", user_data=user_data)
+                # Start the background task for stream check if not running
+                if self.stream_check_task is None:
+                    self.stream_check_task = self.bot.loop.create_task(self.check_streams())
+
+            # User stopped streaming
+            elif before.self_stream and not after.self_stream:
                 channel_id = before.channel.id
-                if channel_id in self.voice_channels:  # Remove the channel state
+                # Remove the channel state
+                if channel_id in self.voice_channels:
                     del self.voice_channels[channel_id]
-                if not self.voice_channels and self.stream_check_task is not None:  # If no one is streaming
-                    self.stream_check_task.cancel()  # Stop the background task
+
+                # Stop the background task if no one is streaming
+                if not self.voice_channels and self.stream_check_task is not None:
+                    self.stream_check_task.cancel()
                     self.stream_check_task = None
-            else:  # The member joined or left a voice channel
-                if before.channel is not None:
-                    channel_id = before.channel.id
-                    if channel_id in self.voice_channels:  # Update the list of watchers
-                        channel = self.bot.get_channel(channel_id)
-                        self.voice_channels[channel_id]['watchers'] = [member.id for member in channel.members if not member.bot and not member.voice.self_stream]
-                if after.channel is not None:
-                    channel_id = after.channel.id
-                    if channel_id in self.voice_channels:  # Update the list of watchers
-                        channel = self.bot.get_channel(channel_id)
-                        self.voice_channels[channel_id]['watchers'] = [member.id for member in channel.members if not member.bot and not member.voice.self_stream]
+            else:
+                # For joining or leaving a voice channel, XP is set to 0 by default
                 xp = 0
+                # Check if there is a current event for voice chat
                 if self.current_event is not None and self.current_event['name'] == "Voice Chat Vibes":
                     xp = self.current_event['bonus'](xp)
-                if after.channel is not None:
-                    await self.add_xp(member.id, member.guild.id, xp, after.channel.id)
+                # Fetch the user's data from the database
+                user_data = await self.db_cog.handle_user(member.guild.id, "get", member.id)
+                # Update XP and save it back to the database
+                user_data['xp'] += xp
+                await self.db_cog.handle_user(member.guild.id, "update", user_data=user_data)
+
         except Exception as e:
             print(f"Error in on_voice_state_update: {e}")
 
@@ -186,14 +232,12 @@ class XPCore(commands.Cog):
             print(f"Error in check_streams: {e}")
 
     @commands.Cog.listener()
-    async def on_interaction(self, interaction):
+    async def on_interaction(self, interaction: discord.Interaction):
         """
         Listener to handle interactions. Add XP for specific interactions.
         """
         try:
-            #print(f"type: {interaction.type}")
             if interaction.type == discord.InteractionType.application_command:
-                #print(f"interaction was a slash command")
                 user_id = interaction.user.id
                 guild_id = interaction.guild.id
 
@@ -201,9 +245,14 @@ class XPCore(commands.Cog):
                 xp = random.randint(5, 50)  # Adjust the range as needed
 
                 print(f"Adding {xp} XP to user {user_id} for using a slash command")
-                await self.add_xp(user_id, guild_id, xp, interaction.channel.id)
-                user = await self.db_cog.get_user(user_id, guild_id)  # Get the user from the database
-                await self.db_cog.update_user(user, guild_id)  # Update the user in the database
+                
+                # Fetch user data from the new Database cog
+                user_data = await self.db_cog.handle_user(guild_id, "get", user_id=user_id)
+                # Add XP
+                user_data['xp'] += xp
+                # Update user data in the new Database cog
+                await self.db_cog.handle_user(guild_id, "update", user_data=user_data)
+                
         except Exception as e:
             print(f"Error in on_interaction: {e}")
 
@@ -216,7 +265,7 @@ class XPCore(commands.Cog):
         Choice(name='Voice Chat Vibes', value="Voice Chat Vibes"),
         Choice(name='Random', value="random")
     ])
-    async def trigger_event(self, interaction, event_name: str):
+    async def trigger_event(self, interaction: discord.Interaction, event_name: str):
         await interaction.response.defer()
         if self.event_task and self.event_task.is_running():
             self.event_task.cancel()
@@ -234,6 +283,8 @@ class XPCore(commands.Cog):
             self.event_start_time = datetime.now()
 
             guild_id = interaction.guild.id
+            # Set the bot channel using the handle_channel method
+            await self.db_cog.handle_channel(guild_id, "set_bot_channel", channel_id=interaction.channel.id)
             await self.announce_event(guild_id)
 
             # Schedule the task to reset the event after its duration
@@ -249,23 +300,26 @@ class XPCore(commands.Cog):
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
 
-    @tasks.loop(hours=1)  # This will actually be overridden by the above
-    async def reset_event(self, guild_id):
+    @tasks.loop(hours=1) # This will update depending on the event
+    async def reset_event(self, guild_id: int):
         """Reset the current event after its duration."""
         self.current_event = None
         self.event_start_time = None
-        await self.db_cog.set_bot_channel(guild_id)  # Set the bot channel
-        bot_channel = self.db_cog.get_bot_channel(guild_id)  # Get the bot channel
+        # Get the bot channel using the handle_channel method
+        channel_id = await self.db_cog.handle_channel(guild_id, "get_bot_channel")
+        bot_channel = self.bot.get_channel(channel_id)
         await bot_channel.send("The XP event has ended! XP rates are back to normal.")
 
 
-    async def announce_event(self, guild_id):
+    async def announce_event(self, guild_id: int):
         try:
             event = self.current_event
             embed = discord.Embed(title=event['name'], description=event['description'], color=0x00ff00)
             embed.add_field(name="Duration", value=f"{event['duration']} hours", inline=False)
             embed.add_field(name="Bonus", value=f"{event['bonus'](1)}x XP", inline=False)
-            self.bot_channel = await self.db_cog.set_bot_channel(guild_id)  # Set the bot channel
+            # Get the bot channel using the handle_channel method
+            channel_id = await self.db_cog.handle_channel(guild_id, "get_bot_channel")
+            self.bot_channel = self.bot.get_channel(channel_id)
             await self.bot_channel.send(embed=embed)
         except Exception as e:
             print(f"Error in announce_event: {e}")
