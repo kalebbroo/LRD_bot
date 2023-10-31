@@ -54,10 +54,10 @@ class Support(commands.Cog):
             # Create an embed to explain the commission system in detail
             embed = await self.bot.get_cog("CreateEmbed").create_embed(
                 title="Commission Requests",
-                description="Heyo! Commissions are finally open, here's how this will work.",
+                description="Heyo! Commissions are finally here, here's how this will work.",
                 color=discord.Colour.green(),
                 fields=[
-                    ("How to Start", "Just shoot me a DM with as much information about your Mob as you can (skills, behavior, etc). Reference photos are appreciated!", False),
+                    ("How to Start", "Just click the YES button below. fill in the fields with as much information about your mob as you can (follow the instructions). Reference photos can be added after you submit your request and your private thread is opened!", False),
                     ("Payment", "First half of payment on start of work and second half when completed.", False),
                     ("Reworks", "The first two reworks are free but after that it's $10.", False),
                     ("Pricing", "Custom Mob -\nModel & Texture - $125 USD\nAnimation - $20 USD (each)\nMythicmobs Configuration - $125 USD", False),
@@ -65,15 +65,14 @@ class Support(commands.Cog):
                     ("Note", "This is a baseline price-point. If you have a grand concept with a ton of skills, the price may vary.", False)
                 ]
             )
-            
-            view = commissions.CommissionView(self.bot)
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+             # Open the image file
+            file = discord.File('images/commissions_open.png', filename='commissions_open.png')
 
-            # TODO: Send a message explaining how to use the commission system
-            # Add a yes and no button so they can confirm if they want to enter a commission
-            # If yes, send open a modal for them to enter the info
-            # On submit of the modal, Create a private thread for the commission, 
-            # If no, send a message saying they can if they change their mind
+            # Set the image in the embed
+            embed.set_image(url="attachment://commissions_open.png")
+
+            view = commissions.CommissionView(self.bot)
+            await interaction.followup.send(embed=embed, view=view, file=file, ephemeral=True)
 
 
     # Select Menu for choosing what type of ticket they are opening
