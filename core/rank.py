@@ -27,8 +27,8 @@ class RankCore(commands.Cog):
                 member = interaction.user  # If no member is specified, use the user who invoked the command
 
             user_id = member.id
-            db_cog = self.bot.get_cog('Database')
-            user = await db_cog.get_user(user_id, interaction.guild.id)
+            # Fetching user data from Database cog
+            user = await self.db_cog.handle_user(interaction.guild.id, "get", user_id=member.id)
             if user is None:
                 user = {
                     'id': user_id,
@@ -83,8 +83,8 @@ class RankCore(commands.Cog):
         """
         try:
             await interaction.response.defer()
-            db_cog = self.bot.get_cog('Database')
-            user = await db_cog.get_user(member.id, interaction.guild.id)
+            # Fetching user data from the updated Database cog
+            user = await self.db_cog.handle_user(interaction.guild.id, "get", user_id=member.id)
 
             setting = Settings(
                 background="https://cdn.discordapp.com/attachments/1122904665986711622/1123091340008370228/wumpus.jpg",
@@ -160,8 +160,8 @@ class RankCore(commands.Cog):
         if channel_id == showcase_channel_id:
             return
         try:
-            db_cog = self.bot.get_cog('Database')
-            user = await db_cog.get_user(user_id, guild_id)
+            # Fetching user data from the updated Database cog
+            user = await self.db_cog.handle_user(guild_id, "get", user_id=user_id)
             guild = self.bot.get_guild(guild_id)
             member = guild.get_member(user_id)
             if user['level'] == 2:
