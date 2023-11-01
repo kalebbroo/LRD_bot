@@ -73,7 +73,8 @@ class SetupSelect(Select):
                     try:
                         # Fetch messages from the channel using history
                         async for message in channel.history(limit=None):  # `limit=None` fetches all messages
-                            user_data = await self.bot.get_cog('Database').get_user(message.author.id, interaction.guild.id)
+                            # Fetch user data from the new Database cog
+                            user_data = await db_cog.handle_user(interaction.guild.id, 'get', user_id=message.author.id)
                             # Check if user_data is not None before proceeding
                             if user_data is None:
                                 continue
@@ -82,8 +83,8 @@ class SetupSelect(Select):
                             # Add XP to the user
                             xp = random.randint(5, 50)
                             user_data['xp'] += xp
-                            # Update the user data in DB
-                            await self.bot.get_cog('Database').update_user(user_data, interaction.guild.id)  
+                            # Update the user data in the new Database cog
+                            await db_cog.handle_user(interaction.guild.id, 'update', user_data=user_data)
                         # Sleep for a short duration to prevent rate limits
                         await asyncio.sleep(0.2)
                     except Exception as e:

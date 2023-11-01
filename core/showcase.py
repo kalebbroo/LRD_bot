@@ -20,12 +20,10 @@ class Showcase(commands.Cog):
             super().__init__(timeout=None)
             self.bot = bot
             self.interaction = interaction
-        # TODO: make sure all methods in the db cog work with code changes
         @discord.ui.button(style=ButtonStyle.success, label="Vote Up", custom_id="vote_up", emoji="👍", row=1)
         async def vote_up(self, interaction, button):
             user = interaction.user.id
             message_id = interaction.message.id
-            db = self.bot.get_cog("Database")
             guild_id = interaction.guild.id
             vote_added = await db.add_vote(guild_id, message_id, user, 'vote_up')
             if not vote_added:
