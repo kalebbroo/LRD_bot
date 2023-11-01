@@ -19,17 +19,21 @@ async def load_extensions():
         if filename.endswith('.py'):
             await bot.load_extension(f'core.{filename[:-3]}')
 
-async def register_views(bot):
+async def register_views(bot: commands.Bot):
+    # Fetch all guilds the bot is in
     guilds = bot.guilds
     for guild in guilds:
         guild_id = guild.id
+        # Retrieve the Database cog
         db_cog = bot.get_cog('Database')
 
         # For Showcase Messages
         showcase_cog = bot.get_cog('Showcase')
         if showcase_cog:
-            message_ids = await db_cog.get_all_message_ids(guild_id)
-            channel_info = await db_cog.get_channel_info(guild_id)
+            # Fetch all message IDs for the showcase from the Database
+            message_ids = await db_cog.handle_showcase(guild_id, "get_all_message_ids")
+            # Fetch channel information from the Database
+            channel_info = await db_cog.handle_channel(guild_id, "get_channel_info")
             channel_dict = {display_name: channel_id for display_name, channel_id in channel_info}
             for message_id in message_ids:
                 channel_id = channel_dict.get("Showcase")
@@ -46,11 +50,14 @@ async def register_views(bot):
         # For Support Messages
         support_cog = bot.get_cog('Support')
         if support_cog:
-            support_channel_name = await db_cog.get_support_channel(guild_id)
-            support_channel_id = await db_cog.get_id_from_display(guild_id, support_channel_name)
+            # Fetch support channel name from the Database
+            support_channel_name = await db_cog.handle_channel(guild_id, "get_support_channel")
+            # Fetch support channel ID from the Database
+            support_channel_id = await db_cog.handle_channel(guild_id, "get_channel_info").get(support_channel_name)
             if support_channel_id:
                 support_channel = bot.get_channel(support_channel_id)
-                support_message_id = await db_cog.get_message_id_from_channel(guild_id, "Support")
+                # Fetch support message ID from the Database
+                support_message_id = await db_cog.handle_channel(guild_id, "get_message_id", display_name="Support")
                 if support_message_id:
                     support_message = await support_channel.fetch_message(support_message_id)
                     support_view = support_cog.TicketButton(bot, None)
@@ -59,11 +66,14 @@ async def register_views(bot):
         # For Welcome Messages
         welcome_cog = bot.get_cog('WelcomeNewUser')
         if welcome_cog:
-            welcome_channel_id = await db_cog.get_id_from_display(guild_id, 'Rules')
+            # Fetch welcome channel ID from the Database
+            welcome_channel_id = await db_cog.handle_channel(guild_id, "get_channel_info").get('Rules')
             if welcome_channel_id:
                 welcome_channel = bot.get_channel(welcome_channel_id)
+                # Fetch role mapping from the Database
                 role_mapping, _ = await welcome_cog.get_role_mapping(guild_id)
-                welcome_message_id = await db_cog.get_message_id_from_channel(guild_id, "Rules")
+                # Fetch welcome message ID from the Database
+                welcome_message_id = await db_cog.handle_channel(guild_id, "get_message_id", display_name="Rules")
                 welcome_message = await welcome_channel.fetch_message(welcome_message_id)
                 # Edit the message view
                 view = RulesView(bot, db_cog, guild_id, role_mapping)
@@ -74,7 +84,8 @@ async def register_views(bot):
         else:
             print("Welcome cog not found. Skipping.")
 
-        print(f"Refreshed persistant buttons for guild {guild.name} with {bot.user.name}.")
+        print(f"Refreshed persistent buttons for guild {guild.name} with {bot.user.name}.")
+
 
 
 @bot.event
