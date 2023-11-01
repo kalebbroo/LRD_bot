@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
+from discord import app_commands, Member, Interaction
 from DiscordLevelingCard import RankCard, Settings, Sandbox
 from PIL import Image
 from io import BytesIO
@@ -13,11 +13,11 @@ class RankCore(commands.Cog):
     def __init__(self, bot):
         """Initialize the RankCore with the bot object and database cog."""
         self.bot = bot
-        self.db_cog = self.bot.get_cog('Database')
+        self.db = self.bot.get_cog('Database')
 
     @app_commands.command(name='rank', description='Check a user\'s rank')
     @app_commands.describe(member='The member to check the rank of')
-    async def rank(self, interaction, member: discord.Member = None):
+    async def rank(self, interaction: Interaction, member: Member = None) -> None:
         """
         Display the rank card for a specified user or the invoking user if no user is specified.
         """
@@ -26,12 +26,12 @@ class RankCore(commands.Cog):
             if member is None:
                 member = interaction.user  # If no member is specified, use the user who invoked the command
 
-            user_id = member.id
-            # Fetching user data from Database cog
-            user = await self.db_cog.handle_user(interaction.guild.id, "get", user_id=member.id)
+            # Fetching user data from updated Database cog
+            user = await self.db.handle_user(interaction.guild.id, "get", user_id=member.id)
             if user is None:
+                # Initialize user data if not found in the database
                 user = {
-                    'id': user_id,
+                    'id': member.id,
                     'guild_id': interaction.guild.id,
                     'xp': 0,
                     'level': 0,
@@ -44,17 +44,19 @@ class RankCore(commands.Cog):
                     'name_changes': 0,
                     'last_showcase_post': None
                 }
-                await db_cog.update_user(user, interaction.guild.id)
+                await self.db.handle_user(interaction.guild.id, "update", user_id=member.id, user_data=user)
+
         except requests.RequestException:
             await interaction.followup.send("Error fetching images for rank card.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
             return
 
+        # Calculate xp, level, and rank
         xp = user['xp']
         level = user['level']
-        xp_to_next_level = round(((1.2 ** (level + 1) - 1) * 100) / 0.2) 
-        rank = await db_cog.get_rank(user_id, interaction.guild.id)
+        xp_to_next_level = round(((1.2 ** (level + 1) - 1) * 100) / 0.2)
+        rank = await self.db.handle_user(interaction.guild.id, "get_rank", user_id=member.id)
 
         card_settings = Settings(
             background="https://cdn.discordapp.com/attachments/1122904665986711622/1122904935923716187/bg.jpg",
@@ -77,15 +79,18 @@ class RankCore(commands.Cog):
 
     @app_commands.command(name='user_stats', description='Display user stat card')
     @app_commands.describe(member='The member to view stats of')
-    async def user_stats(self, interaction, member: discord.Member):
+    async def user_stats(self, interaction: Interaction, member: Member) -> None:
         """
         Display statistics for a given member in the server.
         """
         try:
             await interaction.response.defer()
             # Fetching user data from the updated Database cog
-            user = await self.db_cog.handle_user(interaction.guild.id, "get", user_id=member.id)
-
+            user = await self.db.handle_user(interaction.guild.id, "get", user_id=member.id)
+            if user is None:
+                await interaction.followup.send("User data not found.", ephemeral=True)
+                return
+            
             setting = Settings(
                 background="https://cdn.discordapp.com/attachments/1122904665986711622/1123091340008370228/wumpus.jpg",
                 bar_color="green",
