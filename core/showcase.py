@@ -21,11 +21,11 @@ class Showcase(commands.Cog):
             self.bot = bot
             self.interaction = interaction
         @discord.ui.button(style=ButtonStyle.success, label="Vote Up", custom_id="vote_up", emoji="👍", row=1)
-        async def vote_up(self, interaction, button):
+        async def vote_up(self, interaction: discord.Interaction, button: discord.ui.Button):
             user = interaction.user.id
             message_id = interaction.message.id
             guild_id = interaction.guild.id
-            vote_added = await db.add_vote(guild_id, message_id, user, 'vote_up')
+            vote_added = await self.db.handle_showcase(guild_id, "add_vote", message_id=message_id, user_id=user, vote_type="vote_up")
             if not vote_added:
                 await interaction.response.send_message(f"You've already voted on this post!", ephemeral=True)
                 return
@@ -35,23 +35,21 @@ class Showcase(commands.Cog):
             await self.bot.get_cog('XPCore').add_xp(interaction.user.id, interaction.guild.id, xp, interaction.channel.id)
         
         @discord.ui.button(style=ButtonStyle.success, label="Vote Down", custom_id="vote_down", emoji="👎", row=1)
-        async def vote_down(self, interaction, button):
+        async def vote_down(self, interaction: discord.Interaction, button: discord.ui.Button):
             user = interaction.user.id
             message_id = interaction.message.id
-            db = self.bot.get_cog("Database")
             guild_id = interaction.guild.id
-            vote_added = await db.add_vote(guild_id, message_id, user, 'vote_down')
+            vote_added = await self.db.handle_showcase(guild_id, "add_vote", message_id=message_id, user_id=user, vote_type="vote_up")
             if not vote_added:
                 await interaction.response.send_message(f"You've already voted on this post!", ephemeral=True)
                 return
             await self.update_embed_with_votes(guild_id, interaction.message, message_id)
             await interaction.response.send_message(f"Thanks for your vote!", ephemeral=True)
 
-        async def update_embed_with_votes(self, guild_id, message, message_id):
-            db = self.bot.get_cog("Database")
-            upvotes = await db.get_vote_count_for_post(guild_id, message_id, "vote_up")
-            downvotes = await db.get_vote_count_for_post(guild_id, message_id, "vote_down")
-            is_leader = await db.is_leading_post(guild_id, message_id)
+        async def update_embed_with_votes(self, guild_id: int, message: discord.Message, message_id: int):
+            upvotes = await self.db.handle_showcase(guild_id, "get_vote_count", message_id=message_id, vote_type="vote_up")
+            downvotes = await self.db.handle_showcase(guild_id, "get_vote_count", message_id=message_id, vote_type="vote_down")
+            is_leader = await self.db.handle_showcase(guild_id, "is_leading_post", message_id=message_id)
             
             # Get the current embed from the message
             embed = message.embeds[0]
@@ -72,10 +70,10 @@ class Showcase(commands.Cog):
             self.embed = embed
 
         @discord.ui.button(style=ButtonStyle.success, label="Approve", custom_id="approve", emoji="✅", row=1)
-        async def approve(self, interaction, button):
+        async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
             guild_id = interaction.guild.id
-            showcase_channel_id = await self.bot.get_cog('Database').get_id_from_display(guild_id, "Showcase")
-            
+            showcase_channel_id = await self.db.handle_channel(guild_id, "get_id_from_display", display_name="Showcase")
+
             if showcase_channel_id:
                 file = None
                 temp_file_path = None
@@ -211,13 +209,14 @@ class Showcase(commands.Cog):
                 print("Couldn't send DM to user.")
 
     @commands.Cog.listener()
-    async def on_message(self, message: Message) -> None:
+    async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
         # Initialize variables
         file = None
         temp_file_path = None
-        showcase_channel_id = await self.db.get_showcase_channel(message.guild.id)
+        # Fetch showcase channel ID from the database
+        showcase_channel_id = await self.db.handle_channel(message.guild.id, "get_showcase_channel")
         is_youtube = False
         embed_data = {
             "title": f"Join the LittleRoomDev Patreon!",
