@@ -11,6 +11,7 @@ class AdminControls(commands.Cog):
         self.user_cooldowns = {} 
         self.db = self.bot.get_cog("Database")
         self.embed_cog = self.bot.get_cog("CreateEmbed")
+        self.ROLES = ['everyone', 'patreon', 'admin']  # Add role names to polulate the autocomplete
 
     async def cog_check(self, ctx) -> bool: 
         """Check if the command invoker has admin permissions."""
@@ -180,16 +181,20 @@ class AdminControls(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
             print(f"An error occurred: {e}")
 
-    async def roles_autocomplete(interaction: discord.Interaction, current: str, value: str = None) -> List[app_commands.Choice[str]]:
-        print("Roles Autocomplete Triggered")
-        roles = interaction.guild.roles
-        choices = [app_commands.Choice(name=role.name, value=role.name) for role in roles if current.lower() in role.name.lower()]
+    async def roles_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        # Filter roles based on specified role names and the current input
+        choices = [
+            app_commands.Choice(name=role.name, value=role.name) 
+            for role in interaction.guild.roles 
+            if role.name in self.ROLES and current.lower() in role.name.lower()
+        ]
         print("Choices:", choices)
         return choices
 
-    async def channels_autocomplete(interaction: discord.Interaction, current: str, value: str = None) -> List[app_commands.Choice[str]]:
+
+    async def channels_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         # Fetch mapped channels from the database using the new handle_channel method
-        channel_info = await interaction.bot.get_cog('Database').handle_channel(interaction.guild.id, "get_channel_info")
+        channel_info = await self.db.handle_channel(interaction.guild.id, "get_channel_info")
         
         # Convert IDs to channel objects
         mapped_channels = [interaction.guild.get_channel(channel_id) for display_name, channel_id in channel_info]
@@ -199,9 +204,8 @@ class AdminControls(commands.Cog):
             for channel in mapped_channels if current.lower() in channel.name.lower()
         ]
     
-    async def fruit_autocomplete(
-        interaction: discord.Interaction,
-        current: str, value: str = None) -> List[app_commands.Choice[str]]:
+    async def fruit_autocomplete(self, 
+        interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         fruits = ['Banana', 'Pineapple', 'Apple', 'Watermelon', 'Melon', 'Cherry']
         return [
             app_commands.Choice(name=fruit, value=fruit)
@@ -230,8 +234,16 @@ class AdminControls(commands.Cog):
             await interaction.followup.send("Invalid channel name", ephemeral=True)
             return
 
-        # Convert tag_a_role to discord.Role
-        tag_a_role = discord.utils.get(interaction.guild.roles, name=tag_a_role) if tag_a_role else None
+        if tag_a_role:
+            # Ensure that only specified roles can be tagged
+            if tag_a_role in self.ROLES:
+                tag_a_role = discord.utils.get(interaction.guild.roles, name=tag_a_role)
+                if not tag_a_role:
+                    await interaction.followup.send("Specified role not found in the server. Make sure a role exists with the same name.", ephemeral=True)
+                    return
+            else:
+                await interaction.followup.send("The role you entered is not on the list or you spelled it wrong.", ephemeral=True)
+                return
 
         # Check if the user attached any media
         if interaction.message and interaction.message.attachments:
