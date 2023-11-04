@@ -3,6 +3,7 @@ from discord import app_commands, Colour
 from discord.ext import commands, tasks
 from discord.ui import Button, View, Modal, TextInput
 from datetime import datetime, timedelta
+from typing import Dict, List, Tuple
 import json
 
 class RoleButton(Button):
@@ -195,7 +196,9 @@ class WelcomeNewUser(commands.Cog):
         for btn_name in button_display_names:
             role_info = await db_cog.handle_server_role(guild_id, "get", button_name=btn_name)
             if role_info:
-                role_mapping[btn_name] = {'role_id': role_info['role_id'], 'emoji': role_info['emoji']}
+                # role_info is a tuple, so we need to access its elements by index
+                role_id, emoji = role_info
+                role_mapping[btn_name] = {'role_id': role_id, 'emoji': emoji}
             else:
                 unmapped_buttons.append(btn_name)
 

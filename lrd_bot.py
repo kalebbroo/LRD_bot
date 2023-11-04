@@ -52,8 +52,12 @@ async def register_views(bot: commands.Bot):
         if support_cog:
             # Fetch support channel name from the Database
             support_channel_name = await db_cog.handle_channel(guild_id, "get_support_channel")
-            # Fetch support channel ID from the Database
-            support_channel_id = await db_cog.handle_channel(guild_id, "get_channel_info").get(support_channel_name)
+            # Fetch channel information from the Database
+            channel_info = await db_cog.handle_channel(guild_id, "get_channel_info")
+            # Convert the list of tuples to a dictionary for easier access
+            channel_dict = {display_name.lower(): channel_id for display_name, channel_id in channel_info}
+            # Fetch support channel ID using the dictionary
+            support_channel_id = channel_dict.get(support_channel_name.lower()) if support_channel_name else None
             if support_channel_id:
                 support_channel = bot.get_channel(support_channel_id)
                 # Fetch support message ID from the Database
@@ -66,18 +70,25 @@ async def register_views(bot: commands.Bot):
         # For Welcome Messages
         welcome_cog = bot.get_cog('WelcomeNewUser')
         if welcome_cog:
-            # Fetch welcome channel ID from the Database
-            welcome_channel_id = await db_cog.handle_channel(guild_id, "get_channel_info").get('Rules')
+            # Fetch channel information from the Database
+            channel_info = await db_cog.handle_channel(guild_id, "get_channel_info")
+            # Convert the list of tuples to a dictionary for easier access
+            channel_dict = {display_name.lower(): channel_id for display_name, channel_id in channel_info}
+            # Fetch welcome channel ID using the dictionary
+            welcome_channel_id = channel_dict.get('rules')  # Assuming 'rules' is the display name you are using
             if welcome_channel_id:
                 welcome_channel = bot.get_channel(welcome_channel_id)
                 # Fetch role mapping from the Database
                 role_mapping, _ = await welcome_cog.get_role_mapping(guild_id)
                 # Fetch welcome message ID from the Database
                 welcome_message_id = await db_cog.handle_channel(guild_id, "get_message_id", display_name="Rules")
-                welcome_message = await welcome_channel.fetch_message(welcome_message_id)
-                # Edit the message view
-                view = RulesView(bot, db_cog, guild_id, role_mapping)
-                await welcome_message.edit(view=view)
+                if welcome_message_id:
+                    welcome_message = await welcome_channel.fetch_message(welcome_message_id)
+                    # Edit the message view
+                    view = RulesView(bot, db_cog, guild_id, role_mapping)
+                    await welcome_message.edit(view=view)
+                else:
+                    print("Welcome message not found. Skipping.")
             else:
                 print("Welcome channel not found. Skipping.")
                 await welcome_cog.setup_message(guild_id)

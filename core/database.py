@@ -169,12 +169,16 @@ class Database(commands.Cog):
             match action:
                 case "set":
                     await self.c.execute(f"INSERT OR REPLACE INTO {table_name}(button_name, role_name, role_id, emoji) VALUES (?, ?, ?, ?)", 
-                                         (button_name, role_name, role_id, emoji))
+                                        (button_name, role_name, role_id, emoji))
 
                 case "get":
                     await self.c.execute(f"SELECT role_id, emoji FROM {table_name} WHERE LOWER(button_name) = ?", (button_name.lower(),))
                     return await self.c.fetchone()
                 
+                case "get_all_button_names":
+                    await self.c.execute(f"SELECT button_name FROM {table_name}")
+                    return [row[0] for row in await self.c.fetchall()]
+            
             await self.conn.commit()
         except Exception as e:
             print(f"Error in handle_server_role: {e}")
