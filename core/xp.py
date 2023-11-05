@@ -106,6 +106,7 @@ class XPCore(commands.Cog):
             guild_id = message.guild.id
             
             # Fetch user data from database
+            await asyncio.sleep(0.3)  # Wait for the database to be ready
             user = await self.db_cog.handle_user(guild_id, 'get', user_id=user_id)
             if user is None:
                 print(f"user was a bot or not in the database")

@@ -41,11 +41,14 @@ async def register_views(bot: commands.Bot):
                     channel = bot.get_channel(channel_id)
                     try:
                         message = await channel.fetch_message(message_id)
-                        vote_buttons = showcase_cog.VoteButtons(bot, message)
+                        vote_buttons = showcase_cog.VoteButtons(bot)
                         await message.edit(view=vote_buttons)
                     except discord.errors.NotFound:
                         print(f"Message {message_id} not found in channel {channel_id}. Skipping.")
                         continue
+                else:
+                    print(f"Showcase channel not found in {guild.name}. Skipping.")
+                    continue
         
         # For Support Messages
         support_cog = bot.get_cog('Support')
@@ -66,6 +69,9 @@ async def register_views(bot: commands.Bot):
                     support_message = await support_channel.fetch_message(support_message_id)
                     support_view = support_cog.TicketButton(bot, None)
                     await support_message.edit(view=support_view)
+            else:
+                print(f"Support channel not found in {guild.name}. Skipping.")
+                continue
 
         # For Welcome Messages
         welcome_cog = bot.get_cog('WelcomeNewUser')
@@ -75,7 +81,7 @@ async def register_views(bot: commands.Bot):
             # Convert the list of tuples to a dictionary for easier access
             channel_dict = {display_name.lower(): channel_id for display_name, channel_id in channel_info}
             # Fetch welcome channel ID using the dictionary
-            welcome_channel_id = channel_dict.get('rules')  # Assuming 'rules' is the display name you are using
+            welcome_channel_id = channel_dict.get('rules')
             if welcome_channel_id:
                 welcome_channel = bot.get_channel(welcome_channel_id)
                 # Fetch role mapping from the Database
@@ -88,15 +94,14 @@ async def register_views(bot: commands.Bot):
                     view = RulesView(bot, db_cog, guild_id, role_mapping)
                     await welcome_message.edit(view=view)
                 else:
-                    print("Welcome message not found. Skipping.")
+                    print(f"Welcome message not found in {guild.name}. Skipping.")
             else:
-                print("Welcome channel not found. Skipping.")
+                print(f"Welcome channel not found in {guild.name}. Skipping.")
                 await welcome_cog.setup_message(guild_id)
         else:
-            print("Welcome cog not found. Skipping.")
+            print(f"Welcome cog not found in {guild.name}. Skipping.")
 
         print(f"Refreshed persistent buttons for guild {guild.name} with {bot.user.name}.")
-
 
 
 @bot.event

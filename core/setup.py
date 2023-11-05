@@ -43,6 +43,7 @@ class SetupSelect(Select):
             case "Welcome Page Setup":
                 # Using Database cog's handle_channel method
                 channel_names = await db_cog.handle_channel(interaction.guild.id, "get_display_names")
+                print(f"\nChannel names: {channel_names}\n")
                 if not channel_names:
                     await interaction.response.send_message("No channels are available for mapping. Please set up channels first.", ephemeral=True)
                     return

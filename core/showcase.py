@@ -16,14 +16,17 @@ class Showcase(commands.Cog):
         self.db = bot.get_cog("Database")
 
     class VoteButtons(View):
-        def __init__(self, bot, interaction):
+        def __init__(self, bot):
             super().__init__(timeout=None)
             self.bot = bot
-            self.interaction = interaction
+            self.db = bot.get_cog("Database")
+
         @discord.ui.button(style=ButtonStyle.success, label="Vote Up", custom_id="vote_up", emoji="👍", row=1)
         async def vote_up(self, interaction: discord.Interaction, button: discord.ui.Button):
+            print(f"\nVote up clicked")
             user = interaction.user.id
             message_id = interaction.message.id
+            print(f"Message ID: {message_id}\n")
             guild_id = interaction.guild.id
             vote_added = await self.db.handle_showcase(guild_id, "add_vote", message_id=message_id, user_id=user, vote_type="vote_up")
             if not vote_added:
@@ -36,10 +39,12 @@ class Showcase(commands.Cog):
         
         @discord.ui.button(style=ButtonStyle.success, label="Vote Down", custom_id="vote_down", emoji="👎", row=1)
         async def vote_down(self, interaction: discord.Interaction, button: discord.ui.Button):
+            print(f"\nVote down clicked")
             user = interaction.user.id
             message_id = interaction.message.id
+            print(f"Message ID: {message_id}\n")
             guild_id = interaction.guild.id
-            vote_added = await self.db.handle_showcase(guild_id, "add_vote", message_id=message_id, user_id=user, vote_type="vote_up")
+            vote_added = await self.db.handle_showcase(guild_id, "add_vote", message_id=message_id, user_id=user, vote_type="vote_down")
             if not vote_added:
                 await interaction.response.send_message(f"You've already voted on this post!", ephemeral=True)
                 return
@@ -68,16 +73,17 @@ class Showcase(commands.Cog):
             self.interaction = interaction
             self.original_message = original_message
             self.embed = embed
+            self.db = bot.get_cog("Database")
 
         @discord.ui.button(style=ButtonStyle.success, label="Approve", custom_id="approve", emoji="✅", row=1)
         async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
             guild_id = interaction.guild.id
-            showcase_channel_id = await self.db.handle_channel(guild_id, "get_id_from_display", display_name="Showcase")
+            showcase_channel_id = await self.db.handle_channel(guild_id, "get_showcase_channel", display_name="Showcase")
 
             if showcase_channel_id:
                 file = None
                 temp_file_path = None
-                is_image = False  # New variable to check if the attachment is an image
+                is_image = False  # Check if the attachment is an image
                 
                 if self.original_message.attachments:
                     attachment = self.original_message.attachments[0]
@@ -93,7 +99,7 @@ class Showcase(commands.Cog):
 
                 # Check if the original embed had the "is_youtube" flag
                 is_youtube = any(field.name == 'is_youtube' for field in self.embed.fields)
-                view = Showcase.VoteButtons(self.bot, interaction)
+                view = Showcase.VoteButtons(self.bot)
                 showcase_channel = self.bot.get_channel(showcase_channel_id)
 
                 # If this is not a YouTube post
@@ -104,6 +110,9 @@ class Showcase(commands.Cog):
                         showcase_post = await showcase_channel.send(embed=self.embed, file=file, view=view)
                     else:
                         showcase_post = await showcase_channel.send(embed=self.embed, view=view)
+                # Add the message id to the database
+                await self.db.handle_showcase(guild_id, "save_new_showcase", user_id=self.original_message.author.id, message_id=showcase_post.id)
+                print(f"Showcase post saved to database with message ID {showcase_post.id}")
 
                 if temp_file_path:  # Delete the temporary file if it exists
                     os.remove(temp_file_path)
@@ -210,6 +219,7 @@ class Showcase(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
+        print(f"\nShowcase on_message triggered\n")
         if message.author.bot:
             return
         # Initialize variables
@@ -217,6 +227,11 @@ class Showcase(commands.Cog):
         temp_file_path = None
         # Fetch showcase channel ID from the database
         showcase_channel_id = await self.db.handle_channel(message.guild.id, "get_showcase_channel")
+        if showcase_channel_id is not None:
+            print(f"\nShowcase Channel ID: {showcase_channel_id}\n")
+        else:
+            print("Showcase channel ID not found.")
+
         is_youtube = False
         embed_data = {
             "title": f"Join the LittleRoomDev Patreon!",
@@ -229,6 +244,7 @@ class Showcase(commands.Cog):
         }
         # Check if the message is in the showcase channel
         if not showcase_channel_id or message.channel.id != showcase_channel_id:
+            print("Message not in showcase channel. Skipping.")
             return
         
         # Check for any links in the message content
@@ -315,7 +331,7 @@ class Showcase(commands.Cog):
         return temp_file_path
 
     async def handle_admin_channel_post(self, embed_data: dict, valid_media_links: list, file: discord.File, message: Message) -> None:
-        admin_channel_id = await self.db.get_admin_channel(message.guild.id)
+        admin_channel_id = await self.db.handle_channel(message.guild.id, "get_admin_channel")
         if admin_channel_id:
             admin_channel = self.bot.get_channel(admin_channel_id)
             embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)

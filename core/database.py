@@ -65,8 +65,8 @@ class Database(commands.Cog):
                 CREATE TABLE IF NOT EXISTS showcase_{guild_id}(
                     message_id INTEGER,
                     user_id INTEGER,
-                    vote_up TEXT,
-                    vote_down TEXT,
+                    vote_up INTEGER DEFAULT 0,
+                    vote_down INTEGER DEFAULT 0,
                     PRIMARY KEY(message_id, user_id)
                 )
             """)
@@ -110,6 +110,10 @@ class Database(commands.Cog):
                 case "get_all":
                     await self.c.execute(f"SELECT number, name, content FROM {table_name}")
                     return await self.c.fetchall()
+                
+                case _:
+                    print("Something went wrong in handle_faq call.")
+                    return None
                 
             await self.conn.commit()
         except Exception as e:
@@ -157,6 +161,32 @@ class Database(commands.Cog):
                     await self.c.execute(f"SELECT channel_id FROM {table_name} WHERE channel_display_name = 'bot_channel'")
                     result = await self.c.fetchone()
                     return result[0] if result else None
+                
+                case "get_showcase_channel":
+                    await self.c.execute(f"SELECT * FROM {table_name} WHERE LOWER(channel_display_name) = 'showcase'")
+                    result = await self.c.fetchone()
+                    if result:
+                        print(f"Raw result from the database: {result}")
+                        # If you know the exact number of columns, you can unpack them directly:
+                        # channel_display_name, channel_name, channel_id, message, message_id = result
+                        return result[2]  # Assuming the third column is channel_id
+                    else:
+                        print("No showcase channel found.")
+                        return None
+                    
+                case "get_admin_channel":
+                    await self.c.execute(f"SELECT channel_id FROM {table_name} WHERE LOWER(channel_display_name) = 'admin channel'")
+                    result = await self.c.fetchone()
+                    if result:
+                        print(f"Admin Channel ID found: {result[0]}")
+                        return result[0]
+                    else:
+                        print("No admin channel found.")
+                        return None
+                                
+                case _:
+                    print("Something went wrong in handle_channel call.")
+                    return None
 
             await self.conn.commit()
         except Exception as e:
@@ -178,6 +208,10 @@ class Database(commands.Cog):
                 case "get_all_button_names":
                     await self.c.execute(f"SELECT button_name FROM {table_name}")
                     return [row[0] for row in await self.c.fetchall()]
+                
+                case _:
+                    print("Something went wrong in handle_server_role call.")
+                    return None
             
             await self.conn.commit()
         except Exception as e:
@@ -197,17 +231,21 @@ class Database(commands.Cog):
                     await self.c.execute(f"INSERT OR REPLACE INTO {table_name}(user_id, last_post_time) VALUES (?, ?)", (user_id, timestamp.timestamp()))
 
                 case "add_vote":
-                    await self.c.execute(f"SELECT vote_up, vote_down FROM {table_name} WHERE message_id = ? AND user_id = ?", (message_id, user_id))
+                    await self.c.execute(f"SELECT CAST(vote_up as INT), CAST(vote_down as INT) FROM {table_name} WHERE message_id = ? AND user_id = ?", (message_id, user_id))
                     data = await self.c.fetchone()
-                    if data:
+                    if data:  # If there is already a record for this user and message
                         vote_up, vote_down = data
-                        if (vote_type == "vote_up" and vote_up == 1) or (vote_type == "vote_down" and vote_down == 1):
-                            return False
-                        opposite_vote_type = "vote_down" if vote_type == "vote_up" else "vote_up"
+                        # Check if the user has already voted in the same way as the current vote attempt
+                        if (vote_type == "vote_up" and vote_up) or (vote_type == "vote_down" and vote_down):
+                            return False  # User has already voted this way, do not allow a new vote
+                        # If the user has not voted this way before, update the vote
+                        opposite_vote_type = "vote_up" if vote_type == "vote_down" else "vote_down"
+                        # Update the record with the new vote, making sure to set integers for the votes
                         await self.c.execute(f"UPDATE {table_name} SET {vote_type} = 1, {opposite_vote_type} = 0 WHERE message_id = ? AND user_id = ?", (message_id, user_id))
-                    else:
-                        await self.c.execute(f"INSERT INTO {table_name}(message_id, user_id, vote_up, vote_down) VALUES (?, ?, ?, ?)",
-                                            (message_id, user_id, 1 if vote_type == "vote_up" else 0, 1 if vote_type == "vote_down" else 0))
+                    else:  
+                        # If there is no existing record for this user and message, create one with the new vote
+                        await self.c.execute(f"INSERT INTO {table_name}(message_id, user_id, {vote_type}, {opposite_vote_type}) VALUES (?, ?, 1, 0)", (message_id, user_id))
+
                 case "get_vote_count":
                     await self.c.execute(f"SELECT COUNT(*) FROM {table_name} WHERE message_id = ? AND {vote_type} = 1", (message_id,))
                     result = await self.c.fetchone()
@@ -221,6 +259,13 @@ class Database(commands.Cog):
                 case "get_all_message_ids":
                     await self.c.execute(f"SELECT DISTINCT message_id FROM {table_name}")
                     return [item[0] for item in await self.c.fetchall()]
+                
+                case "save_new_showcase":
+                    await self.c.execute(f"INSERT INTO {table_name}(user_id, message_id, vote_up, vote_down) VALUES (?, ?, 0, 0)", (user_id, message_id))
+                
+                case _:
+                    print("Something went wrong in handle_showcase call.")
+                    return None
                 
             await self.conn.commit()
         except Exception as e:
@@ -299,6 +344,11 @@ class Database(commands.Cog):
                     for i, user in enumerate(users, start=1):
                         if user[0] == user_id:
                             return i
+                        
+                case _:
+                    print("Something went wrong in handle_user call.")
+                    return None
+                
             await self.conn.commit()
         except Exception as e:
             print(f"Error in handle_user: {e}")
