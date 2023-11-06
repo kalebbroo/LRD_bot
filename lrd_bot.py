@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 from core.welcome import RulesView
+import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
@@ -37,14 +38,17 @@ async def register_views(bot: commands.Bot):
             channel_dict = {display_name: channel_id for display_name, channel_id in channel_info}
             for message_id in message_ids:
                 channel_id = channel_dict.get("Showcase")
+                
                 if channel_id:
                     channel = bot.get_channel(channel_id)
                     try:
+                        await asyncio.sleep(0.5)  # Sleep for .5 seconds to avoid rate limiting
                         message = await channel.fetch_message(message_id)
                         vote_buttons = showcase_cog.VoteButtons(bot)
                         await message.edit(view=vote_buttons)
                     except discord.errors.NotFound:
-                        print(f"Message {message_id} not found in channel {channel_id}. Skipping.")
+                        print(f"Message {message_id} not found in channel {channel_id}. Removing from the database.")
+                        await db_cog.handle_showcase(guild_id, "remove_message", message_id=message_id)
                         continue
                 else:
                     print(f"Showcase channel not found in {guild.name}. Skipping.")

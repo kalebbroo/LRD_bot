@@ -231,20 +231,19 @@ class Database(commands.Cog):
                     await self.c.execute(f"INSERT OR REPLACE INTO {table_name}(user_id, last_post_time) VALUES (?, ?)", (user_id, timestamp.timestamp()))
 
                 case "add_vote":
-                    await self.c.execute(f"SELECT CAST(vote_up as INT), CAST(vote_down as INT) FROM {table_name} WHERE message_id = ? AND user_id = ?", (message_id, user_id))
-                    data = await self.c.fetchone()
-                    if data:  # If there is already a record for this user and message
-                        vote_up, vote_down = data
-                        # Check if the user has already voted in the same way as the current vote attempt
-                        if (vote_type == "vote_up" and vote_up) or (vote_type == "vote_down" and vote_down):
-                            return False  # User has already voted this way, do not allow a new vote
-                        # If the user has not voted this way before, update the vote
-                        opposite_vote_type = "vote_up" if vote_type == "vote_down" else "vote_down"
-                        # Update the record with the new vote, making sure to set integers for the votes
-                        await self.c.execute(f"UPDATE {table_name} SET {vote_type} = 1, {opposite_vote_type} = 0 WHERE message_id = ? AND user_id = ?", (message_id, user_id))
-                    else:  
-                        # If there is no existing record for this user and message, create one with the new vote
-                        await self.c.execute(f"INSERT INTO {table_name}(message_id, user_id, {vote_type}, {opposite_vote_type}) VALUES (?, ?, 1, 0)", (message_id, user_id))
+                    # Check if a record already exists for this user's vote on this message
+                    await self.c.execute(f"SELECT 1 FROM {table_name} WHERE message_id = ? AND user_id = ?", (message_id, user_id))
+                    exists = await self.c.fetchone()
+
+                    # If a record exists, update the vote
+                    if exists:
+                        await self.c.execute(f"UPDATE {table_name} SET vote_up = ?, vote_down = ? WHERE message_id = ? AND user_id = ?",
+                                            (1 if vote_type == "vote_up" else 0, 1 if vote_type == "vote_down" else 0, message_id, user_id))
+                    else:
+                        # If no record exists, insert a new one with the vote
+                        await self.c.execute(f"INSERT INTO {table_name} (message_id, user_id, vote_up, vote_down) VALUES (?, ?, ?, ?)",
+                                            (message_id, user_id, 1 if vote_type == "vote_up" else 0, 1 if vote_type == "vote_down" else 0))
+                    return True  # Return True as the operation is successful
 
                 case "get_vote_count":
                     await self.c.execute(f"SELECT COUNT(*) FROM {table_name} WHERE message_id = ? AND {vote_type} = 1", (message_id,))
@@ -262,6 +261,10 @@ class Database(commands.Cog):
                 
                 case "save_new_showcase":
                     await self.c.execute(f"INSERT INTO {table_name}(user_id, message_id, vote_up, vote_down) VALUES (?, ?, 0, 0)", (user_id, message_id))
+
+                case "remove_message":
+                    await self.c.execute(f"DELETE FROM {table_name} WHERE message_id = ?", (message_id,))
+                    print(f"Removed message {message_id} from showcase table.")
                 
                 case _:
                     print("Something went wrong in handle_showcase call.")
