@@ -24,11 +24,10 @@ class UserCommands(commands.Cog):
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name='help', description='Displays help information.')
-    @app_commands.choices(command_name=[
+    @app_commands.choices(choose_options=[
         Choice(name='Basic Help', value="overview"),
         Choice(name='Admin Setup', value="setup"),
         Choice(name='FAQ', value="faq"),
-        Choice(name='Showcase Server', value="showcase_server"),
         Choice(name='Mute', value="mute"),
         Choice(name='Unmute', value="unmute"),
         Choice(name='Kick', value="kick"),
@@ -36,11 +35,11 @@ class UserCommands(commands.Cog):
         Choice(name='Adjust Roles', value="adjust_roles"),
         Choice(name='Announcement', value="announcement")
     ])
-    async def help(self, interaction, command_name: str):
+    async def help(self, interaction, choose_options: str):
         await interaction.response.defer()
         # Check if the command is an admin command and if the user is not an admin
         admin_commands = ["setup", "mute", "unmute", "kick", "ban", "adjust_roles", "announcement"]
-        if command_name in admin_commands:
+        if choose_options in admin_commands:
             if not interaction.user.guild_permissions.administrator:  # checking if the user has admin permissions
                 await interaction.followup.send("You are not an admin.", ephemeral=True)
                 return
@@ -49,13 +48,17 @@ class UserCommands(commands.Cog):
             description = "Overview of commands"
             fields = []
 
-            match command_name:
+            match choose_options:
                 case "overview":
                     fields = [
-                        ("`/help`", "Displays detailed help for specified commands. Use `/help <command_name>` to see details. A list of commands will be displayed."),
-                        ("`/faq`", "Displays a list of frequently asked questions. Use `/faq <number>` to see a specific FAQ. A list of FAQs will be displayed."),
-                        ("`!faq`", "Displays a specific FAQ in chat. Use `!faq <number>` to see a specific FAQ. A list of FAQs will be displayed."),
-                        ("`!howtoinstall`", "Displays a message in chat guiding users to check the `#howtoinstall` channel for detailed installation instructions."),
+                        ("`/help`", "Displays detailed help for specified commands. Use `/help <command_name>` to see details. A list of commands will be displayed.\n"),
+                        ("`/faq`", "Displays a list of frequently asked questions. Use `/faq <number>` to see a specific FAQ. A list of FAQs will be displayed.\n"),
+                        ("`!faq`", "Displays a specific FAQ in chat. Use `!faq <number>` to see a specific FAQ. A list of FAQs will be displayed.\n"),
+                        ("`!howtoinstall`", "Displays a message in chat guiding users to check the `#howtoinstall` channel for detailed installation instructions.\n"),
+                        ("`Showcase Channel`", "Make a post that will showcase LRD content in your server! The post must contain an image or some other media.\n"),
+                        ("`Support Ticket`", "Create a support ticket in the #support channel. Do not ask for support in chat channels.\n"),
+                        ("`Commission Request`", "Create a commission ticket in the #support channel.\n"),
+                        ("`Showcase Server`", "Displays information about the showcase server functionality. play.littleroom.dev\n"),
                     ]
                 case "faq":
                     title = "FAQ Command"
@@ -73,9 +76,6 @@ class UserCommands(commands.Cog):
                         "By typing `!howtoinstall` in chat, a message will be sent guiding users to check "
                         "the `#howtoinstall` channel for detailed installation instructions."
                     )
-                case "showcase_server":
-                    title = "Showcase Server Command"
-                    description = "This command explains the showcase server functionality. It is mainly informative and is provided for understanding how showcase servers work."
                 case "setup":
                     title = "Setup Command"
                     description = (
@@ -84,7 +84,7 @@ class UserCommands(commands.Cog):
                         "\n**Remove FAQ:** Removes an existing FAQ. After selecting, you'll see a list of all FAQs. Choose one to remove it.\n"
                         "\n**Map Roles and Create Buttons:** Lets you map server roles to button display names and emojis. A modal will guide you through the mapping process. Recommended roles to map include 'I Read the Rules', 'Showcase', 'Announcements', 'Patreon', and more.\n"
                         "\n**Map Channel Names to Database:** Links specific channel names and IDs in the database. A modal will guide you through the mapping. Recommended channels to map are 'bot-channel', 'general', 'showcase', 'how-to-install', 'rules', 'support-patreon', 'announcements', and so on.\n"
-                        "\n**Welcome Page Setup:** Used to set up the welcome page for new users. The system will guide you through the configuration process."
+                        "\n**Welcome Page Setup:** Used to set up the welcome page for new users. The system will guide you through the configuration process.\n"
                         "\n**Retroactive XP Setup:** Used to set up retroactive XP for users who joined the server before the bot was added. **This is dangerous!**"
                     )
                 case "mute":
