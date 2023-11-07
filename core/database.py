@@ -255,6 +255,20 @@ class Database(commands.Cog):
                     data = await self.c.fetchone()
                     return data[0] == message_id if data else False
                 
+                case "get_vote_status":
+                    # Fetch the current vote status for a given user and message
+                    await self.c.execute(f"SELECT vote_up, vote_down FROM {table_name} WHERE user_id = ? AND message_id = ?", (user_id, message_id))
+                    data = await self.c.fetchone()
+                    return data  # This will return a tuple (vote_up, vote_down) or None
+
+                case "change_vote":
+                    # Update the vote status for a given user and message
+                    if vote_type == "vote_up":
+                        await self.c.execute(f"UPDATE {table_name} SET vote_up = 1, vote_down = 0 WHERE user_id = ? AND message_id = ?", (user_id, message_id))
+                    elif vote_type == "vote_down":
+                        await self.c.execute(f"UPDATE {table_name} SET vote_up = 0, vote_down = 1 WHERE user_id = ? AND message_id = ?", (user_id, message_id))
+                    return True  # Indicate the operation was successful
+                    
                 case "get_all_message_ids":
                     await self.c.execute(f"SELECT DISTINCT message_id FROM {table_name}")
                     return [item[0] for item in await self.c.fetchall()]

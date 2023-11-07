@@ -44,32 +44,61 @@ class Showcase(commands.Cog):
             message_id = interaction.message.id
             guild_id = interaction.guild.id
 
-            # Here, you'd check if the user has already voted. If they have, you wouldn't proceed further.
-            # For now, this logic is left as TODO as per your initial code.
+            # Retrieve the current vote status for the user and message
+            current_vote = await self.db.handle_showcase(guild_id, "get_vote_status", user_id=user_id, message_id=message_id)
+            print(f"Current vote status: {current_vote}")  # debug
 
-            print(f"Attempting to add vote: Guild ID: {guild_id}, User ID: {user_id}, Message ID: {message_id}, Vote Type: {vote_type}")
+            # Determine if the user has voted before and their previous vote type
+            has_voted = current_vote is not None and (int(current_vote[0]) == 1 or int(current_vote[1]) == 1)
+            print(f"Has voted before: {has_voted}")  # debug
+            has_voted_same_before = False
+            has_voted_opposite_before = False
 
-            # Call the database method to handle adding or updating a vote
-            vote_added = await self.db.handle_showcase(guild_id, "add_vote", message_id=message_id, user_id=user_id, vote_type=vote_type)
-            if not vote_added:
-                await interaction.response.send_message(f"You've already voted on this post!", ephemeral=True)
-                return
+            # Check if the user has voted before and set flags accordingly
+            if has_voted:
+                vote_up, vote_down = current_vote
+                # Convert string values to integers for comparison
+                vote_up = int(vote_up)
+                vote_down = int(vote_down)
+                print(f"Current vote status: Up - {vote_up}, Down - {vote_down}")  # This should help you debug
+                has_voted_same_before = (vote_type == "vote_up" and vote_up == 1) or (vote_type == "vote_down" and vote_down == 1)
+                print(f"Has voted same before: {has_voted_same_before}")  # debug
+                has_voted_opposite_before = (vote_type == "vote_up" and vote_down == 1) or (vote_type == "vote_down" and vote_up == 1)
+                print(f"Has voted opposite before: {has_voted_opposite_before}")  # debug
 
-            print(f"Vote added: {vote_added}, for Message ID: {message_id} by User ID: {user_id}")
-
-            # Get the current embed from the message
-            current_embed = interaction.message.embeds[0]
+            # Construct the response message based on the vote status
+            if has_voted_same_before:
+                response_message = "You have already voted on this post!"
+            elif has_voted_opposite_before:
+                response_message = "You have changed your vote."
+                # Update the vote in the database
+                success = await self.db.handle_showcase(guild_id, "change_vote", user_id=user_id, message_id=message_id, vote_type=vote_type)
+                if not success:
+                    response_message = "There was an error changing your vote. Please try again."
+            elif not has_voted:
+                # Add the new vote to the database
+                success = await self.db.handle_showcase(guild_id, "add_vote", user_id=user_id, message_id=message_id, vote_type=vote_type)
+                if success:
+                    response_message = "Thanks for your vote!"
+                    # Add XP to the user for the first vote
+                    xp = 10  # Adjust the XP value as needed
+                    await self.bot.get_cog('XPCore').add_xp(user_id, guild_id, xp, interaction.channel.id)
+                else:
+                    response_message = "There was an error recording your vote. Please try again."
+            else:
+                # This should not happen, but it's a fallback
+                response_message = "There was an error with your vote. Please try again."
 
             # Prepare the media for re-upload if necessary
             file, temp_file_path, is_image = await self.bot.get_cog('Showcase').process_media(interaction.message)
 
-            # Check if there is a YouTube or other media URL in the content
-            is_youtube = 'is_youtube' in current_embed.fields
+            # Get the current embed from the message
+            current_embed = interaction.message.embeds[0]
 
             # Update the embed with the new vote counts
-            upvotes = await self.db.handle_showcase(interaction.guild.id, "get_vote_count", message_id=interaction.message.id, vote_type="vote_up")
-            downvotes = await self.db.handle_showcase(interaction.guild.id, "get_vote_count", message_id=interaction.message.id, vote_type="vote_down")
-            is_leader = await self.db.handle_showcase(interaction.guild.id, "is_leading_post", message_id=interaction.message.id)
+            upvotes = await self.db.handle_showcase(guild_id, "get_vote_count", message_id=message_id, vote_type="vote_up")
+            downvotes = await self.db.handle_showcase(guild_id, "get_vote_count", message_id=message_id, vote_type="vote_down")
+            is_leader = await self.db.handle_showcase(guild_id, "is_leading_post", message_id=message_id)
 
             # Create a new embed to prevent reference issues
             new_embed = discord.Embed.from_dict(current_embed.to_dict())
@@ -78,28 +107,27 @@ class Showcase(commands.Cog):
             leader_text = "🏆 Current Leader!" if is_leader else ""
             new_embed.set_footer(text=f"👍 {upvotes} |⚖️| 👎 {downvotes} {leader_text}")
 
-            if is_youtube:
-                # If it's a YouTube link or other media, just edit the message to update the embed
+            # If it's a YouTube link or other media, just edit the message to update the embed
+            if 'is_youtube' in current_embed.fields:
                 await interaction.message.edit(embed=new_embed)
             else:
+                attachments_to_use = interaction.message.attachments if not file else [file]
                 # If there is an image, set it in the new embed
                 if file and is_image:
                     new_embed.set_image(url=f"attachment://media{os.path.splitext(file.filename)[1]}")
+                
+                # Edit the message with the updated embed and re-upload the file if it exists or keep the original attachment
+                await interaction.message.edit(embed=new_embed, attachments=attachments_to_use)
 
             # Edit the message with the updated embed and re-upload the file if it exists
             await interaction.message.edit(embed=new_embed, attachments=[file] if file else [])
 
+            # Respond to the user's interaction
+            await interaction.response.send_message(response_message, ephemeral=True)
+
             # Delete the temporary file if it exists
             if temp_file_path:
                 os.remove(temp_file_path)
-
-            # Respond to the user's interaction
-            await interaction.response.send_message(f"Thanks for your vote!", ephemeral=True)
-
-            # Add XP to the user
-            xp = 10  # You can adjust the XP value as needed
-            await self.bot.get_cog('XPCore').add_xp(user_id, guild_id, xp, interaction.channel.id)
-
 
         @discord.ui.button(style=ButtonStyle.success, label="Vote Up", custom_id="vote_up", emoji="👍", row=1)
         async def vote_up(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -108,21 +136,6 @@ class Showcase(commands.Cog):
         @discord.ui.button(style=ButtonStyle.success, label="Vote Down", custom_id="vote_down", emoji="👎", row=1)
         async def vote_down(self, interaction: discord.Interaction, button: discord.ui.Button):
             await self.handle_vote(interaction, "vote_down")
-
-        async def update_embed_with_votes(self, guild_id: int, message: discord.Message, message_id: int):
-            upvotes = await self.db.handle_showcase(guild_id, "get_vote_count", message_id=message_id, vote_type="vote_up")
-            downvotes = await self.db.handle_showcase(guild_id, "get_vote_count", message_id=message_id, vote_type="vote_down")
-            is_leader = await self.db.handle_showcase(guild_id, "is_leading_post", message_id=message_id)
-            
-            # Get the current embed from the message
-            embed = message.embeds[0]
-            
-            # Update the footer with the new vote count
-            leader_text = "🏆 Current Leader!" if is_leader else ""
-            embed.set_footer(text=f"👍 {upvotes} |⚖️| 👎 {downvotes} {leader_text}")
-            
-            # Edit the message with the updated embed
-            await message.edit(embed=embed)
 
     class ApprovalButtons(View):
         def __init__(self, bot, interaction, original_message, embed):
