@@ -4,8 +4,9 @@ FROM python:3.11.4-alpine3.18
 # Set the working directory in the container
 WORKDIR /app
 
-# Define a volume for the database
+# Define a volume for the database and showcase
 VOLUME /app/database
+VOLUME /app/showcase
 
 # Copy the local package files to the container's workspace
 COPY . /app/
