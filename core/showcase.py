@@ -109,71 +109,65 @@ class Showcase(commands.Cog):
             guild_id = interaction.guild.id
             showcase_channel_id = await self.db.handle_channel(guild_id, "get_showcase_channel", display_name="Showcase")
 
-            if showcase_channel_id:
-                showcase_channel = self.bot.get_channel(showcase_channel_id)
-                message_id = interaction.message.id
-                print(f"message_id: {message_id}")
+            if not showcase_channel_id:
+                print("Showcase channel ID not found.")
+                return
 
-                is_youtube = any(field.name == 'is_youtube' and field.value == "True" for field in self.embed.fields)
+            showcase_channel = self.bot.get_channel(showcase_channel_id)
+            message_id = interaction.message.id
 
-                # Construct the file path directly since the message ID and the directory are known
-                if self.embed.image and not is_youtube:
-                    print(f"Embed image URL: {self.embed.image.url}")
-                    file_extension = os.path.splitext(self.embed.image.url)[1]
-                    media_file_path = f"./showcase/{message_id}{file_extension}"
-                    print(f"Constructed media file path: {media_file_path}")
-                    if os.path.exists(media_file_path):
-                        file = discord.File(media_file_path, filename=f"{message_id}{file_extension}")
-                        # If it's an image or video, set it in the embed
-                        self.embed.set_image(url=f"attachment://{message_id}{file_extension}")
-                        print(f"File found: {media_file_path}")
-                    else:
-                        file = None
-                        print(f"File not found at path: {media_file_path}")
-                    showcase_post = await showcase_channel.send(embed=self.embed, file=file, view=Showcase.VoteButtons(self.bot))
-                    print(f"Showcase post sent. Post ID: {showcase_post.id}")
-                else:
-                    # For YouTube links, the logic would be slightly different
-                    yt_embed = interaction.message.embeds[0]
-                    showcase_post = await showcase_channel.send(embed=yt_embed, view=Showcase.VoteButtons(self.bot))
-                print(f"Is YouTube post: {is_youtube}")
+            # Assuming the original message object is accessible here as 'original_message'
+            file = None
+            if self.original_message.attachments:
+                attachment = self.original_message.attachments[0]
+                # Check if the attachment is an image or a video
+                if any(attachment.filename.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.mp4']):
+                    file_path = await Showcase.download_and_save_media(self, attachment.url, message_id)
+                    if file_path:
+                        file = discord.File(file_path, filename=os.path.basename(file_path))
+                        # Set image or video in the embed
+                        if file.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+                            self.embed.set_image(url=f'attachment://{file.filename}')
+                        # Note: Discord does not support embedding videos directly in the embed, 
+                        # but the video will be attached to the message
 
-                # Add the message id to the database
-                await self.db.handle_showcase(guild_id, "save_new_showcase", user_id=self.original_message.author.id, message_id=showcase_post.id)
-                print(f"Showcase post saved to database with message ID {showcase_post.id}")
+            showcase_post = await showcase_channel.send(embed=self.embed, file=file, view=Showcase.VoteButtons(self.bot))
+            print(f"Showcase post sent. Post ID: {showcase_post.id}")
 
-                # Create a thread for discussion
-                thread_name = f"Discussion for {self.original_message.author.name}'s post"
-                await showcase_post.create_thread(name=thread_name, auto_archive_duration=1440)  # 1 day
+            # Add the message id to the database
+            await self.db.handle_showcase(guild_id, "save_new_showcase", user_id=self.original_message.author.id, message_id=showcase_post.id)
+            print(f"Showcase post saved to database with message ID {showcase_post.id}")
 
-                # Notify the original author via DM
-                try:
-                    embed_data = {
-                        "title": "Showcase Post Approved",
-                        "description": f"Your showcase post has been approved by {interaction.user.display_name}.",
-                        "color": discord.Color.green(),
-                        "footer_text": "Congratulations!"
-                    }
-                    approval_embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
-                    await self.original_message.author.send(embed=approval_embed)
-                except discord.errors.Forbidden:
-                    print("Couldn't send DM to user.")
+            # Create a thread for discussion
+            thread_name = f"Discussion for {self.original_message.author.name}'s post"
+            await showcase_post.create_thread(name=thread_name, auto_archive_duration=1440)  # 1 day
 
-                # Disable buttons
-                for item in self.children:
-                    if isinstance(item, discord.ui.Button):
-                        item.disabled = True
+            # Notify the original author via DM
+            try:
+                embed_data = {
+                    "title": "Showcase Post Approved",
+                    "description": f"Your showcase post has been approved by {interaction.user.display_name}.",
+                    "color": discord.Color.green(),
+                    "footer_text": "Congratulations!"
+                }
+                approval_embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
+                await self.original_message.author.send(embed=approval_embed)
+            except discord.errors.Forbidden:
+                print("Couldn't send DM to user.")
 
-                # Edit the original message to update the view
-                await interaction.message.edit(view=self)
+            # Disable buttons
+            for item in self.children:
+                if isinstance(item, discord.ui.Button):
+                    item.disabled = True
 
-                await interaction.response.send_message(f"Showcase approved by {interaction.user.display_name}!")
+            # Edit the original message to update the view
+            await interaction.message.edit(view=self)
 
-                # Give XP to the user who submitted the post
-                xp = random.randint(20, 100)
-                await self.bot.get_cog('XPCore').add_xp(self.original_message.author.id, self.original_message.guild.id, xp, self.original_message.channel.id)
-            else:
-                print("Showcase channel not found.")
+            await interaction.response.send_message(f"Showcase approved by {interaction.user.display_name}!")
+
+            # Give XP to the user who submitted the post
+            xp = random.randint(20, 100)
+            await self.bot.get_cog('XPCore').add_xp(self.original_message.author.id, self.original_message.guild.id, xp, self.original_message.channel.id)
 
         @discord.ui.button(style=ButtonStyle.danger, label="Deny", custom_id="deny", emoji="🖕🏽", row=1)
         async def deny(self, interaction, button):

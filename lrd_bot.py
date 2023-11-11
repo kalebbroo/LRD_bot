@@ -42,7 +42,7 @@ async def register_views(bot: commands.Bot):
                 if channel_id:
                     channel = bot.get_channel(channel_id)
                     try:
-                        await asyncio.sleep(0.5)  # Sleep for .5 seconds to avoid rate limiting
+                        await asyncio.sleep(1)  # Sleep for 1 second to avoid rate limiting
                         message = await channel.fetch_message(message_id)
                         vote_buttons = showcase_cog.VoteButtons(bot)
                         await message.edit(view=vote_buttons)
