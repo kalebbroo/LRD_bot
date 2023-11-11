@@ -134,27 +134,36 @@ class WelcomeNewUser(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        db_cog = self.bot.get_cog("Database")  # Database cog
-        embed_cog = self.bot.get_cog("CreateEmbed")  # Embed creation cog
+        # Fetch Database and Embed cogs
+        db_cog = self.bot.get_cog("Database")
+        embed_cog = self.bot.get_cog("CreateEmbed")
 
-        # Using the new method to get the welcome channel
+        # Fetch welcome channel name from the database
         welcome_channel_name = await db_cog.handle_channel(member.guild.id, "get_welcome_channel")
-        if not welcome_channel_name:
-            welcome_channel_name = "rules"
 
-        welcome_channel = discord.utils.get(member.guild.text_channels, name=welcome_channel_name)
-        
+        if welcome_channel_name:
+            # Find the welcome channel in the guild using the fetched name
+            welcome_channel = discord.utils.get(member.guild.text_channels, name=welcome_channel_name)
+        else:
+            print(f"No welcome channel name found in the database for {member.guild.name}")
+            return
         if not welcome_channel:
             print(f"No channel named {welcome_channel_name} found in {member.guild.name}")
             return
-        # Get the default system channel for the guild
+
+        # Construct the welcome message embed
+        embed_title = "Welcome"
+        embed_description = f"Welcome <@{member.id}> to {member.guild.name}! Please check out {welcome_channel.mention} to get your roles."
+        embed_color = discord.Colour.blue()
+        welcome_embed = await embed_cog.create_embed(title=embed_title, description=embed_description, color=embed_color)
+
+        # Send the welcome message to the guild's system channel, if available; otherwise, send it to the user directly
         general_channel = member.guild.system_channel
         if general_channel:
-            embed = await embed_cog.create_embed(title="Welcome", description=f"Welcome {member.mention}! Please head over to {welcome_channel.mention} to get your roles.", color=Colour.blue())
-            await general_channel.send(embed=embed)
+            await general_channel.send(embed=welcome_embed)
         else:
-            embed = await embed_cog.create_embed(title="Welcome", description=f"Welcome to {member.guild.name}! Please check out {welcome_channel.mention} to get your roles.", color=Colour.blue())
-            await member.send(embed=embed)
+            await member.send(embed=welcome_embed)
+
 
     async def setup_message(self, guild_id):
         create_embed_cog = self.bot.get_cog("CreateEmbed")
