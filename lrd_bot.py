@@ -27,32 +27,6 @@ async def register_views(bot: commands.Bot):
         guild_id = guild.id
         # Retrieve the Database cog
         db_cog = bot.get_cog('Database')
-
-        # For Showcase Messages
-        showcase_cog = bot.get_cog('Showcase')
-        if showcase_cog:
-            # Fetch all message IDs for the showcase from the Database
-            message_ids = await db_cog.handle_showcase(guild_id, "get_all_message_ids")
-            # Fetch channel information from the Database
-            channel_info = await db_cog.handle_channel(guild_id, "get_channel_info")
-            channel_dict = {display_name: channel_id for display_name, channel_id in channel_info}
-            for message_id in message_ids:
-                channel_id = channel_dict.get("Showcase")
-                
-                if channel_id:
-                    channel = bot.get_channel(channel_id)
-                    try:
-                        await asyncio.sleep(2)  # Sleep for 2 seconds to avoid rate limiting
-                        message = await channel.fetch_message(message_id)
-                        vote_buttons = showcase_cog.VoteButtons(bot)
-                        await message.edit(view=vote_buttons)
-                    except discord.errors.NotFound:
-                        print(f"Message {message_id} not found in channel {channel_id}. Removing from the database.")
-                        await db_cog.handle_showcase(guild_id, "remove_message", message_id=message_id)
-                        continue
-                else:
-                    print(f"Showcase channel not found in {guild.name}. Skipping.")
-                    continue
         
         # For Support Messages
         support_cog = bot.get_cog('Support')
@@ -76,6 +50,7 @@ async def register_views(bot: commands.Bot):
             else:
                 print(f"Support channel not found in {guild.name}. Skipping.")
                 continue
+        print(f"Refreshed persistent Support buttons for guild {guild.name} with {bot.user.name}.")
 
         # For Welcome Messages
         welcome_cog = bot.get_cog('WelcomeNewUser')
@@ -105,7 +80,47 @@ async def register_views(bot: commands.Bot):
         else:
             print(f"Welcome cog not found in {guild.name}. Skipping.")
 
-        print(f"Refreshed persistent buttons for guild {guild.name} with {bot.user.name}.")
+        print(f"Refreshed persistent Welcome buttons for guild {guild.name} with {bot.user.name}.")
+
+        # For Showcase Messages
+        showcase_cog = bot.get_cog('Showcase')
+        if showcase_cog:
+            # Fetch all message IDs for the showcase from the Database
+            message_ids = await db_cog.handle_showcase(guild_id, "get_all_message_ids")
+            num_messages = len(message_ids) # number of messages in the showcase
+
+            edits_per_period = 5 # number of edits per period
+            period_duration = 20  # in seconds
+            # Calculate total time needed to edit all messages without hitting rate limits
+            total_time_for_edits = (num_messages / edits_per_period) * period_duration
+
+            # Calculate average sleep time between each edit
+            if num_messages > 0: # avoid division by zero
+                sleep_time = total_time_for_edits / num_messages
+            else:
+                sleep_time = 0  # default value
+
+            # Fetch channel information from the Database
+            channel_info = await db_cog.handle_channel(guild_id, "get_channel_info")
+            channel_dict = {display_name: channel_id for display_name, channel_id in channel_info}
+            for message_id in message_ids: # loop through all messages
+                channel_id = channel_dict.get("Showcase")
+                
+                if channel_id:
+                    channel = bot.get_channel(channel_id)
+                    try:
+                        await asyncio.sleep(sleep_time) # Dynamic sleep time to avoid rate limit
+                        message = await channel.fetch_message(message_id)
+                        vote_buttons = showcase_cog.VoteButtons(bot)
+                        await message.edit(view=vote_buttons) # Refresh the buttons
+                    except discord.errors.NotFound:
+                        print(f"Message {message_id} not found in channel {channel_id}. Removing from the database.")
+                        await db_cog.handle_showcase(guild_id, "remove_message", message_id=message_id)
+                        continue
+                else:
+                    print(f"Showcase channel not found in {guild.name}. Skipping.")
+                    continue
+        print(f"Refreshed persistent Showcase buttons for guild {guild.name} with {bot.user.name}.")
 
 
 @bot.event
