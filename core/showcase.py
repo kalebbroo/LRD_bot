@@ -118,7 +118,7 @@ class Showcase(commands.Cog):
 
             # Assuming the original message object is accessible here as 'original_message'
             file = None
-            if self.original_message.attachments:
+            if self.original_message.attachments and not ('youtube.com' in self.original_message.content or 'youtu.be' in self.original_message.content):
                 attachment = self.original_message.attachments[0]
                 # Check if the attachment is an image or a video
                 if any(attachment.filename.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.mp4']):
@@ -130,9 +130,13 @@ class Showcase(commands.Cog):
                             self.embed.set_image(url=f'attachment://{file.filename}')
                         # Note: Discord does not support embedding videos directly in the embed, 
                         # but the video will be attached to the message
+                showcase_post = await showcase_channel.send(embed=self.embed, file=file, view=Showcase.VoteButtons(self.bot))
+                print(f"Showcase post sent. Post ID: {showcase_post.id}")
+            else:
+                message = interaction.message
+                embed = message.embeds[0]
+                showcase_post = await showcase_channel.send(embed=embed, view=Showcase.VoteButtons(self.bot))
 
-            showcase_post = await showcase_channel.send(embed=self.embed, file=file, view=Showcase.VoteButtons(self.bot))
-            print(f"Showcase post sent. Post ID: {showcase_post.id}")
 
             # Add the message id to the database
             await self.db.handle_showcase(guild_id, "save_new_showcase", user_id=self.original_message.author.id, message_id=showcase_post.id)
