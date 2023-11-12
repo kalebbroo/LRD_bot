@@ -267,7 +267,7 @@ class Showcase(commands.Cog):
         any_links = re.findall(r'(https?://\S+)', message.content) if message.content else []
 
         # Reject and delete messages that don't contain any media or URLs
-        if not message.attachments and not any_links:
+        if not message.attachments and not any_links or not message.content or message.content > 2000:
             await self.reject_invalid_post(message)
             return
 
