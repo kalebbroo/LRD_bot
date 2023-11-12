@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+import asyncio
 
 class AdminCommands(commands.Cog):
     """A cog for handling inline commands."""
@@ -15,6 +16,7 @@ class AdminCommands(commands.Cog):
         Handles the !faq command. If a number is provided, it fetches the corresponding FAQ from the database.
         If no number is provided, it instructs the user to use the /faq slash command.
         """
+        await asyncio.sleep(.5)
         if not faq_number:
             embed_data = {
                 "title": "FAQ Command",
@@ -26,11 +28,13 @@ class AdminCommands(commands.Cog):
             return
 
         faq_data = await self.db.handle_faq(ctx.guild.id, "get", number=faq_number)
+        print(f"\nFAQ Data: {faq_data}\n")
 
         if faq_data:
+            faq_name, faq_content = faq_data
             embed_data = {
-                "title": f"FAQ #{faq_number} - {faq_data['name']}",
-                "description": faq_data['content'],
+                "title": f"FAQ #{faq_number} - {faq_name}",
+                "description": faq_content,
                 "color": discord.Color.blue()
             }
             embed = await self.embed_cog.create_embed(**embed_data)

@@ -98,8 +98,7 @@ class Database(commands.Cog):
             match action:
                 case "get":
                     await self.c.execute(f"SELECT name, content FROM {table_name} WHERE number = ?", (number,))
-                    row = await self.c.fetchone()
-                    return {"name": row[0], "content": row[1]} if row else None
+                    return await self.c.fetchone()
                 
                 case "add":
                     await self.c.execute(f"INSERT INTO {table_name}(number, name, content) VALUES (?, ?, ?)", (number, name, content))
