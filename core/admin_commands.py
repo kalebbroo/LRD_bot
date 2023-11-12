@@ -26,10 +26,7 @@ class AdminCommands(commands.Cog):
             embed = await self.embed_cog.create_embed(**embed_data)
             await ctx.send(embed=embed)
             return
-
         faq_data = await self.db.handle_faq(ctx.guild.id, "get", number=faq_number)
-        print(f"\nFAQ Data: {faq_data}\n")
-
         if faq_data:
             faq_name, faq_content = faq_data
             embed_data = {
