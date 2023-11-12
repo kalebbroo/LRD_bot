@@ -18,19 +18,21 @@ class SetupSelect(Select):
 
         match selection:
             case "Add FAQ":
-                view = AddFAQModal(self.bot)
-                await interaction.response.send_modal(view)
+                db_cog = self.bot.get_cog("Database")
+                all_faqs = await db_cog.handle_faq(interaction.guild.id, "get_all")
+                select = AddFAQSelect(self.bot, all_faqs)
+                view = discord.ui.View()
+                view.add_item(select)
+                await interaction.response.send_message("Select a FAQ to add or edit:", view=view, ephemeral=True)
             
             case "Remove FAQ":
                 all_faqs = await db_cog.handle_faq(interaction.guild.id, "get_all")
-                faq_msg = "\n".join([f"#{faq[0]} - {faq[1]}" for faq in all_faqs])
-                embed = await embed_cog.create_embed(title="FAQs", description=faq_msg, color=Colour.blue())
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-                select = FAQRemoveSelect(self.bot, custom_id="faq_remove_selection", placeholder="Select a FAQ to remove")
-                select.options = [discord.SelectOption(label=str(faq[0]), value=str(faq[0])) for faq in all_faqs]
+                select = RemoveFAQSelect(self.bot, custom_id="faq_remove_selection", placeholder="Select a FAQ to remove")
+                # Use both number and name for the label of each FAQ
+                select.options = [discord.SelectOption(label=f"FAQ {faq[1]}. {faq[0]}", value=str(faq[0])) for faq in all_faqs]
                 view = discord.ui.View()
                 view.add_item(select)
-                await interaction.followup.send("Select a FAQ to remove:", view=view, ephemeral=True)
+                await interaction.response.send_message("Select a FAQ to remove:", view=view, ephemeral=True)
                 
             case "Map Roles and Create Buttons":
                 select_menu = RoleSelect(self.bot, interaction.guild.roles)
@@ -101,8 +103,27 @@ class SetupSelect(Select):
                 embed = await embed_cog.create_embed(title="Error", description="Invalid selection.", color=Colour.red())
                 await interaction.response.send_message(embed=embed, ephemeral=True)
 
+class AddFAQSelect(Select):
+    def __init__(self, bot, faqs, *args, **kwargs):
+        self.bot = bot
 
-class FAQRemoveSelect(Select):
+        # Initialize a list of 25 placeholders
+        options = [discord.SelectOption(label=f"FAQ {i + 1}. Placeholder", value=str(i + 1)) for i in range(25)]
+
+        # Replace placeholders with actual FAQs from the database
+        for faq in faqs:
+            faq_number = faq[0] - 1  # Assuming faq[0] is 1-indexed FAQ number
+            if 0 <= faq_number < 25:
+                options[faq_number] = discord.SelectOption(label=f"FAQ {faq[0]}. {faq[1]}", value=str(faq[0]))
+
+        super().__init__(*args, options=options, **kwargs)
+
+    async def callback(self, interaction):
+        selected_option = self.values[0]
+        modal = AddFAQModal(self.bot, selected_option)
+        await interaction.response.send_modal(modal)
+
+class RemoveFAQSelect(Select):
     def __init__(self, bot, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
@@ -124,17 +145,12 @@ class FAQRemoveSelect(Select):
             print(f"Error removing FAQ: {e}")
 
 class AddFAQModal(Modal):
-    def __init__(self, bot):
+    def __init__(self, bot, number):
         super().__init__(title="Add FAQ")
         self.bot = bot
+        self.number = number
         
-        # Creating input fields for FAQ Number and Content
-        self.number_input = TextInput(label='Enter FAQ number',
-                              style=discord.TextStyle.short,
-                              placeholder=f'Example: 1',
-                              min_length=1,
-                              max_length=10,
-                              required=True)
+        # Creating input fields for FAQ Content
         self.name_input = TextInput(label='Enter FAQ name',
                                     style=discord.TextStyle.short,
                                     placeholder=f'Example: Patreon Support',
@@ -149,38 +165,22 @@ class AddFAQModal(Modal):
                                             required=True)
         
         # Add the TextInput components to the modal
-        self.add_item(self.number_input)
         self.add_item(self.name_input)
         self.add_item(self.content_input)
 
     async def on_submit(self, interaction):
         try:
-            # Get the entered FAQ information
-            number = int(self.number_input.value)
             name = self.name_input.value
             content = self.content_input.value
             # Get the Database and Embed cogs
             database_cog = self.bot.get_cog("Database")
             embed_cog = self.bot.get_cog("CreateEmbed")
 
-            # Check if the FAQ already exists
-            existing_faq = await database_cog.handle_faq(interaction.guild.id, "get", number=number)
-
-            if existing_faq:
-                # Send an error message if the FAQ exists
-                embed = await embed_cog.create_embed(title="Error", description=f"FAQ #{number} already exists. Choose another number.", color=Colour.red())
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-                return
-
             # Add the new FAQ to the database
-            await database_cog.handle_faq(interaction.guild.id, "add", number=number, name=name, content=content)
+            await database_cog.handle_faq(interaction.guild.id, "add", number=self.number, name=name, content=content)
 
             # Send a success message
-            embed = await embed_cog.create_embed(title="Success", description=f"FAQ #{number} - {name} has been added successfully.", color=Colour.green())
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        except ValueError:
-            # Handle ValueError for incorrect FAQ number
-            embed = await embed_cog.create_embed(title="Error", description=f"Please enter a valid number for the FAQ.", color=Colour.red())
+            embed = await embed_cog.create_embed(title="Success", description=f"FAQ #{self.number} - {name} has been added successfully.", color=Colour.green())
             await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
             # Handle general exceptions

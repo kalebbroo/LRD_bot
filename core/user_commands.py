@@ -13,7 +13,7 @@ class UserCommands(commands.Cog):
     async def display_faqs(self, interaction):
         await interaction.response.defer()
         # Retrieve all FAQs from the database
-        faqs = await self.db.get_all_faqs(interaction.guild.id)
+        faqs = await self.db.handle_faq(interaction.guild_id, "get_all")
         if not faqs:
             await interaction.followup.send("No FAQs have been set up yet.")
             return
