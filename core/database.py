@@ -127,6 +127,32 @@ class Database(commands.Cog):
                 case "set_mapping":
                     await self.c.execute(f"INSERT OR REPLACE INTO {table_name}(channel_display_name, channel_name, channel_id, message, message_id) VALUES (?, ?, ?, ?, ?)", 
                                          (display_name, channel_name, channel_id, message, message_id))
+                    
+                case "get_channel":
+                    # Dynamically build query based on provided parameters
+                    conditions = []
+                    params = []
+                    if display_name:
+                        conditions.append("LOWER(channel_display_name) = LOWER(?)")
+                        params.append(display_name)
+                    if channel_name:
+                        conditions.append("LOWER(channel_name) = LOWER(?)")
+                        params.append(channel_name)
+                    if channel_id:
+                        conditions.append("channel_id = ?")
+                        params.append(channel_id)
+                    if message:
+                        conditions.append("message = ?")
+                        params.append(message)
+                    if message_id:
+                        conditions.append("message_id = ?")
+                        params.append(message_id)
+
+                    query = f"SELECT * FROM {table_name}"
+                    if conditions:
+                        query += " WHERE " + " AND ".join(conditions)
+                    await self.c.execute(query, tuple(params))
+                    return await self.c.fetchall()
 
                 case "get_welcome_channel":
                     await self.c.execute(f"SELECT channel_name FROM {table_name} WHERE message IS NOT NULL LIMIT 1")
