@@ -91,6 +91,11 @@ class Database(commands.Cog):
         except Exception as e:
             print(f"Error setting up database: {e}")
 
+
+    # TODO: Add a queue system to prevent multiple calls to the database at once
+    # TODO: Convert handle_channel to use the more dynamic get_channel case
+
+
     # FAQ Methods
     async def handle_faq(self, guild_id, action, number=None, name=None, content=None):
         table_name = f"faqs_{guild_id}"
@@ -191,10 +196,7 @@ class Database(commands.Cog):
                     await self.c.execute(f"SELECT * FROM {table_name} WHERE LOWER(channel_display_name) = 'showcase'")
                     result = await self.c.fetchone()
                     if result:
-                        print(f"Raw result from the database: {result}")
-                        # If you know the exact number of columns, you can unpack them directly:
-                        # channel_display_name, channel_name, channel_id, message, message_id = result
-                        return result[2]  # Assuming the third column is channel_id
+                        return result[2]
                     else:
                         print("No showcase channel found.")
                         return None
@@ -203,7 +205,6 @@ class Database(commands.Cog):
                     await self.c.execute(f"SELECT channel_id FROM {table_name} WHERE LOWER(channel_display_name) = 'admin channel'")
                     result = await self.c.fetchone()
                     if result:
-                        print(f"Admin Channel ID found: {result[0]}")
                         return result[0]
                     else:
                         print("No admin channel found.")

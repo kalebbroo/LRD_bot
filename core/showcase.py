@@ -245,12 +245,6 @@ class Showcase(commands.Cog):
 
         # Fetch showcase channel ID from the database
         showcase_channel_id = await self.db.handle_channel(message.guild.id, "get_showcase_channel")
-        if showcase_channel_id:
-            print(f"\nShowcase Channel ID: {showcase_channel_id}\n")
-            print(f"\nShowcase on_message triggered\n")
-        else:
-            print("Showcase channel ID not found.")
-            return
 
         # Initialize variables
         file = None

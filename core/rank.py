@@ -59,7 +59,7 @@ class RankCore(commands.Cog):
         rank = await self.db.handle_user(interaction.guild.id, "get_rank", user_id=member.id)
 
         card_settings = Settings(
-            background="https://cdn.discordapp.com/attachments/1122904665986711622/1122904935923716187/bg.jpg",
+            background="/images/card_blank.png",
             text_color="white",
             bar_color="#800080"
         )

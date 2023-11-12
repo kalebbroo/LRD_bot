@@ -65,6 +65,8 @@ class AdminCommands(commands.Cog):
             embed = await self.embed_cog.create_embed(**embed_data)
             await ctx.send(embed=embed)
 
+    # TODO: add to the embed to make clear inatall instructions. Maybe some common mistakes?
+
     @commands.command(name="howtoinstall", help="Directs the user to the #howtoinstall channel.")
     async def howtoinstall_command(self, ctx):
         """Informs the user to check the #howtoinstall channel."""
