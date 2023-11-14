@@ -3,3 +3,4 @@ requests
 aiosqlite
 python-dotenv
 discordlevelingcard
+imgurpython

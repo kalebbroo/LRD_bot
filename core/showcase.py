@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord.ui import View
 from discord import ButtonStyle, Message, File, Color
 from aiohttp import ClientSession
+from imgurpython import ImgurClient
 import random
 import asyncio
 import aiohttp
@@ -10,6 +11,8 @@ import urllib
 import io
 import re
 import os
+
+cooldown = False
 
 class Showcase(commands.Cog):
     def __init__(self, bot):
@@ -26,6 +29,12 @@ class Showcase(commands.Cog):
             user_id = interaction.user.id
             message_id = interaction.message.id
             guild_id = interaction.guild.id
+            global cooldown
+
+            # Check if the user is on cooldown
+            if cooldown:
+                await interaction.response.send_message("**DO NOT SPAM THE BUTTONS!** Please wait 5 seconds before trying again.", ephemeral=True)
+                return
 
             # Retrieve the current vote status for the user and message
             current_vote = await self.db.handle_showcase(guild_id, "get_vote_status", user_id=user_id, message_id=message_id)
@@ -69,24 +78,14 @@ class Showcase(commands.Cog):
             new_embed = discord.Embed.from_dict(current_embed.to_dict())
             new_embed.set_footer(text=f"👍 {upvotes} |⚖️| 👎 {downvotes} {leader_text}")
 
-            # Check if the media is a YouTube link or other media
-            is_youtube = any(field.name == 'is_youtube' and field.value == "True" for field in current_embed.fields)
-
-            # If it's not a YouTube link, prepare the file path for the media
-            if not is_youtube:
-                file_extension = os.path.splitext(current_embed.image.url)[1] if current_embed.image else None
-                media_file_path = f"./showcase/{message_id}{file_extension}" if file_extension else None
-                file = discord.File(media_file_path) if media_file_path and os.path.exists(media_file_path) else None
-
-                # If there is a media file, set it in the new embed
-                if file and file_extension.lower() in ['.jpg', '.png', '.gif', '.jpeg', '.webp']:
-                    new_embed.set_image(url=f"attachment://media{file_extension}")
-
             # Edit the message with the updated embed and re-upload the file if it exists
-            await interaction.message.edit(embed=new_embed, attachments=[file] if file else [])
+            await interaction.message.edit(embed=new_embed)
 
             # Respond to the user's interaction
             await interaction.response.send_message(response_message, ephemeral=True)
+            cooldown = True
+            await asyncio.sleep(5)
+            cooldown = False
 
         @discord.ui.button(style=ButtonStyle.success, label="Vote Up", custom_id="vote_up", emoji="👍", row=1)
         async def vote_up(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -107,36 +106,16 @@ class Showcase(commands.Cog):
         @discord.ui.button(style=ButtonStyle.success, label="Approve", custom_id="approve", emoji="✅", row=1)
         async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
             guild_id = interaction.guild.id
+            video_url = re.findall(r'(https?://\S+)', self.embed.description) if self.embed.description else []
             showcase_channel_id = await self.db.handle_channel(guild_id, "get_showcase_channel", display_name="Showcase")
 
             if not showcase_channel_id:
                 print("Showcase channel ID not found.")
                 return
-
             showcase_channel = self.bot.get_channel(showcase_channel_id)
-            message_id = interaction.message.id
 
-            # Assuming the original message object is accessible here as 'original_message'
-            file = None
-            if self.original_message.attachments and not ('youtube.com' in self.original_message.content or 'youtu.be' in self.original_message.content):
-                attachment = self.original_message.attachments[0]
-                # Check if the attachment is an image or a video
-                if any(attachment.filename.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.mp4']):
-                    file_path = await Showcase.download_and_save_media(self, attachment.url, message_id)
-                    if file_path:
-                        file = discord.File(file_path, filename=os.path.basename(file_path))
-                        # Set image or video in the embed
-                        if file.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
-                            self.embed.set_image(url=f'attachment://{file.filename}')
-                        # Note: Discord does not support embedding videos directly in the embed, 
-                        # but the video will be attached to the message
-                showcase_post = await showcase_channel.send(embed=self.embed, file=file, view=Showcase.VoteButtons(self.bot))
-                print(f"Showcase post sent. Post ID: {showcase_post.id}")
-            else:
-                message = interaction.message
-                embed = message.embeds[0]
-                showcase_post = await showcase_channel.send(embed=embed, view=Showcase.VoteButtons(self.bot))
-
+            await showcase_channel.send(f"{video_url}") if video_url else None
+            showcase_post = await showcase_channel.send(embed=self.embed, view=Showcase.VoteButtons(self.bot))
 
             # Add the message id to the database
             await self.db.handle_showcase(guild_id, "save_new_showcase", user_id=self.original_message.author.id, message_id=showcase_post.id)
@@ -203,7 +182,7 @@ class Showcase(commands.Cog):
             except discord.errors.Forbidden:
                 print("Couldn't send DM to user.")
 
-    async def youtube_embed_logic(self, message, channel, view):
+    async def video_embed_logic(self, message, channel, view):
             # Wait a bit to ensure Discord has processed the embed. This is a hacky solution.
             await asyncio.sleep(0.2)
             # Fetch the message again to get the auto-generated embed
@@ -212,121 +191,162 @@ class Showcase(commands.Cog):
             # Check if the message has any embeds
             if fetched_message.embeds:
                 # Get the first embed (assuming there's only one)
-                yt_embed = fetched_message.embeds[0]
+                vid_embed = fetched_message.embeds[0]
                 # Get the original embed data
-                description = yt_embed.description
-                title = yt_embed.title
-                name = yt_embed.author.name
-                icon_url = yt_embed.author.icon_url
-                footer = yt_embed.footer.text
+                description = vid_embed.description
+                title = vid_embed.title
+                name = vid_embed.author.name
+                icon_url = vid_embed.author.icon_url
+                footer = vid_embed.footer.text
                 
                 # Create a new embed that mimics the auto-generated YouTube embed using your create_embed method
-                youtube_embed = await self.bot.get_cog("CreateEmbed").create_embed(
+                video_embed = await self.bot.get_cog("CreateEmbed").create_embed(
                     title="Click Here to Watch",
-                    url=yt_embed.url,
-                    description=f"{description}\n\n{yt_embed.description}",
-                    image_url=yt_embed.thumbnail.url,
-                    color=yt_embed.color,
+                    url=vid_embed.url,
+                    description=f"{description}\n\n{vid_embed.description}",
+                    image_url=vid_embed.thumbnail.url,
+                    color=vid_embed.color,
                     footer_text="Did you like this video? Vote on it below!",
                     author_name=f"{name}",
                     author_icon_url=icon_url,
                 )
                 # Edit that message to add the new embed and other details
-                await message.edit(content=None, embed=youtube_embed, view=view)
+                await message.edit(content=None, embed=video_embed, view=view)
             else:
                 print("No embeds found in the message.")
-            showcase_post = await message.edit(content=None, embed=youtube_embed, view=view)
+            showcase_post = await message.edit(content=None, embed=video_embed, view=view)
             return showcase_post
+    
+    async def upload_to_imgur(self, image_path):
+        client_id = os.getenv('IMGUR_CLIENT_ID')
+        client_secret = os.getenv('IMGUR_CLIENT_SECRET')
+
+        client = ImgurClient(client_id, client_secret)
+
+        # Upload an image
+        upload_result = client.upload_from_path(image_path, anon=True)
+
+        # Get the image URL
+        image_url = upload_result['link']
+        print("Uploaded image URL:", image_url)
+        return image_url
+
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
-
         # Fetch showcase channel ID from the database
         showcase_channel_id = await self.db.handle_channel(message.guild.id, "get_showcase_channel")
+        try:
+            # Initialize variables
+            is_youtube = False
+            embed_data = {
+                "title": f"Join the LittleRoomDev Patreon!",
+                "url": "https://www.patreon.com/littleroomdev",
+                "description": message.content,
+                "color": discord.Color.blue(),
+                "author_name": f"Submitted Showcase by {message.author.display_name}",
+                "author_icon_url": message.author.avatar.url,
+                "footer_text": f"Vote Below if you like their showcase!"
+            }
+            # Check if the message is in the showcase channel
+            if message.channel.id != showcase_channel_id:
+                print("Message not in showcase channel. Skipping.")
+                return
 
-        # Initialize variables
-        file = None
-        is_youtube = False
-        embed_data = {
-            "title": f"Join the LittleRoomDev Patreon!",
-            "url": "https://www.patreon.com/littleroomdev",
-            "description": message.content,
-            "color": discord.Color.blue(),
-            "author_name": f"Submitted Showcase by {message.author.display_name}",
-            "author_icon_url": message.author.avatar.url,
-            "footer_text": f"Vote Below!"
-        }
-        # Check if the message is in the showcase channel
-        if message.channel.id != showcase_channel_id:
-            print("Message not in showcase channel. Skipping.")
-            return
+            # Check for any links in the message content
+            any_links = re.findall(r'(https?://\S+)', message.content) if message.content else []
 
-        # Check for any links in the message content
-        any_links = re.findall(r'(https?://\S+)', message.content) if message.content else []
+            # Reject and delete messages that don't contain any media or URLs
+            if not message.attachments and not any_links or not message.content or len(message.content) > 2000:
+                await self.reject_invalid_post(message)
+                return
 
-        # Reject and delete messages that don't contain any media or URLs
-        if not message.attachments and not any_links or not message.content or message.content > 2000:
-            await self.reject_invalid_post(message)
-            return
+            # Check for YouTube links and set is_youtube flag
+            if 'youtube.com' in message.content or 'youtu.be' in message.content:
+                is_youtube = True
+                embed_data["fields"] = [("YouTube Video", "Pending Approval", False), ("is_youtube", "True", False)]
+            is_streamable = False
+            if 'streamable.com' in message.content:
+                is_streamable = True
 
-        # Check for YouTube links and set is_youtube flag
-        if 'youtube.com' in message.content or 'youtu.be' in message.content:
-            is_youtube = True
-            embed_data["fields"] = [("YouTube Video", "Pending Approval", False), ("is_youtube", "True", False)]
+            # Filter out valid media links
+            # Valid image formats
+            valid_image_links = [link for link in any_links if any(ext in link for ext in ['.jpg', '.jpeg', '.png', '.gif', '.tiff', '.apng'])]
 
-        # Filter out valid media links
-        valid_media_links = [link for link in any_links if any(ext in link for ext in ['.jpg', '.jpeg', '.png', '.gif', '.mp4'])]
+            # Send a placeholder message to the admin channel and obtain its ID
+            admin_channel_id = await self.db.handle_channel(message.guild.id, "get_admin_channel")
+            if not admin_channel_id:
+                print("Admin channel ID not found.")
+                return
+            admin_channel = self.bot.get_channel(admin_channel_id)
 
-        # Send a placeholder message to the admin channel and obtain its ID
-        admin_channel_id = await self.db.handle_channel(message.guild.id, "get_admin_channel")
-        if not admin_channel_id:
-            print("Admin channel ID not found.")
-            return
+            # Valid video file extensions
+            video_ext = ['.mp4', '.mpeg', '.avi', '.webm', '.mov', '.mkv', '.flv', '.wmv', '.asf']
+            # Check message attachments for video files
+            valid_video = [attachment for attachment in message.attachments if any(attachment.filename.lower().endswith(ext) for ext in video_ext)]
+            # Combine image and video attachments
+            valid_media_attachments = valid_video + [attachment for attachment in message.attachments 
+                                                     if any(attachment.filename.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.tiff', '.apng'])]
+            if is_youtube or is_streamable:
+                print(f"\nStreaming Video link found.\n")
+                placeholder_message = await admin_channel.send(f"{message.content}")
+                await asyncio.sleep(0.1)
+                fetched_message = await admin_channel.fetch_message(placeholder_message.id)
+                # Instantiate your ApprovalButtons view
+                view = self.ApprovalButtons(self.bot, message, fetched_message.embeds[0])
+                await self.video_embed_logic(placeholder_message, admin_channel, view)
 
-        admin_channel = self.bot.get_channel(admin_channel_id)
-        if is_youtube:
-            print(f"\nYouTube link found.\n")
-            placeholder_message = await admin_channel.send(f"{message.content}")
-            await asyncio.sleep(0.1)
-            fetched_message = await admin_channel.fetch_message(placeholder_message.id)
+            # Determine the media URL and download media if not a YouTube link
+            else:
+                valid_media = valid_media_attachments if valid_media_attachments else valid_image_links
+                if valid_media:
+                    if valid_video:
+                        video_message = await admin_channel.send(f"{message.content}")
+                    placeholder_message = await admin_channel.send(f"{message.content}") 
+                    media_url = valid_media[0].url if message.attachments else valid_media[0]
+                    file_path = await self.download_and_save_media(media_url, placeholder_message.id)
+                    max_retries = 3
+                    for _ in range(max_retries):
+                        imgur_url = await self.upload_to_imgur(file_path)
+                        if imgur_url:
+                            embed_data["image_url"] = imgur_url
+                            break
+                        await asyncio.sleep(1)  # Wait for a second before retrying
+
+                    if not imgur_url:
+                        await self.reject_invalid_post(message, reason="Failed to upload to Imgur")
+                        return
+                    if valid_video:
+                        await video_message.edit(content=imgur_url)
+                        embed_data["image_url"] = ''
+                        embed_data["description"] += f"\n\n[Watch Full Video Here!]({imgur_url})"
+
+            # Delete the user's message and send a DM
+            await message.delete()
+            dm_embed_data = {
+                "title": "Showcase Post Submitted",
+                "description": "Your showcase post has been submitted to the admin for approval.",
+                "color": discord.Color.blue()
+            }
+            dm_embed = await self.bot.get_cog("CreateEmbed").create_embed(**dm_embed_data)
+            await message.author.send(embed=dm_embed)
+
+            # Create the embed
+            embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
+
             # Instantiate your ApprovalButtons view
-            view = self.ApprovalButtons(self.bot, message, fetched_message.embeds[0])
-            await self.youtube_embed_logic(placeholder_message, admin_channel, view)
+            approval_buttons_view = self.ApprovalButtons(self.bot, message, embed)
 
-        # Determine the media URL and download media if not a YouTube link
-        else:
-            print(f"\n(Not YouTube) Valid media links found: {valid_media_links}\n")
-            valid_media = message.attachments if message.attachments else valid_media_links
-            if valid_media:
-                placeholder_message = await admin_channel.send(f"{message.content}") 
-                media_url = valid_media[0].url if message.attachments else valid_media[0]
-                file_path = await self.download_and_save_media(media_url, placeholder_message.id)
-                if file_path:
-                    file = discord.File(file_path, filename=os.path.basename(file_path))
+            if not is_youtube and not is_streamable:
+                await placeholder_message.edit(content='', embed=embed, view=approval_buttons_view)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
 
-        # Delete the user's message and send a DM
-        await message.delete()
-        dm_embed_data = {
-            "title": "Showcase Post Submitted",
-            "description": "Your showcase post has been submitted to the admin for approval.",
-            "color": discord.Color.blue()
-        }
-        dm_embed = await self.bot.get_cog("CreateEmbed").create_embed(**dm_embed_data)
-        await message.author.send(embed=dm_embed)
-
-        # Create the embed
-        embed = await self.bot.get_cog("CreateEmbed").create_embed(**embed_data)
-
-        # Instantiate your ApprovalButtons view
-        approval_buttons_view = self.ApprovalButtons(self.bot, message, embed)
-
-        if not is_youtube:
-            # Edit the placeholder message in the admin channel with the actual embed and the saved media
-            if file and file.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
-                embed.set_image(url=f'attachment://{file.filename}')
-            await placeholder_message.edit(content='', embed=embed, attachments=[file] if file else None, view=approval_buttons_view)
+        except Exception as e:
+            print(f"Error in on_message: {e}")
+            await self.reject_invalid_post(message)
 
     async def reject_invalid_post(self, message: discord.Message) -> None:
         embed_data = {
