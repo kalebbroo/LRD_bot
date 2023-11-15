@@ -13,7 +13,70 @@ class RankCore(commands.Cog):
     def __init__(self, bot):
         """Initialize the RankCore with the bot object and database cog."""
         self.bot = bot
-        self.db = self.bot.get_cog('Database')
+
+    # @app_commands.command(name='rank', description='Check a user\'s rank')
+    # @app_commands.describe(member='The member to check the rank of')
+    # async def rank(self, interaction: Interaction, member: Member = None) -> None:
+    #     """
+    #     Display the rank card for a specified user or the invoking user if no user is specified.
+    #     """
+    #     try:
+    #         await interaction.response.defer()
+    #         self.db = self.bot.get_cog('Database')
+    #         if member is None:
+    #             member = interaction.user  # If no member is specified, use the user who invoked the command
+
+    #         # Fetching user data from updated Database cog
+    #         user = await self.db.handle_user(interaction.guild.id, "get", user_id=member.id)
+    #         if user is None:
+    #             # Initialize user data if not found in the database
+    #             user = {
+    #                 'id': member.id,
+    #                 'guild_id': interaction.guild.id,
+    #                 'xp': 0,
+    #                 'level': 0,
+    #                 'last_message_time': 0,
+    #                 'spam_count': 0,
+    #                 'warnings': 0,
+    #                 'message_count': 0,
+    #                 'last_warn_time': None,
+    #                 'emoji_count': 0,
+    #                 'name_changes': 0,
+    #                 'last_showcase_post': None
+    #             }
+    #             await self.db.handle_user(interaction.guild.id, "update", user_id=member.id, user_data=user)
+
+    #     except requests.RequestException:
+    #         await interaction.followup.send("Error fetching images for rank card.", ephemeral=True)
+    #         print("Error fetching images for rank card.")
+    #     except Exception as e:
+    #         await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
+    #         print(f"An error occurred: {str(e)}")
+    #         return
+
+    #     # Calculate xp, level, and rank
+    #     xp = user['xp']
+    #     level = user['level']
+    #     xp_to_next_level = round(((1.2 ** (level + 1) - 1) * 100) / 0.2)
+    #     rank = await self.db.handle_user(interaction.guild.id, "get_rank", user_id=member.id)
+
+    #     card_settings = Settings(
+    #         background="https://i.imgur.com/pyoODQI.png",
+    #         text_color="white",
+    #         bar_color="#800080"
+    #     )
+    #     card = RankCard(
+    #         settings=card_settings,
+    #         username=member.display_name,
+    #         avatar=member.avatar.url,
+    #         level=level,
+    #         rank=rank,
+    #         current_exp=xp,
+    #         max_exp=xp_to_next_level
+    #     )
+    #     image = await card.card3()  # Generate the card image
+    #     file = discord.File(fp=image, filename='image.png')
+    #     await interaction.followup.send(file=file)
 
     @app_commands.command(name='rank', description='Check a user\'s rank')
     @app_commands.describe(member='The member to check the rank of')
@@ -23,6 +86,7 @@ class RankCore(commands.Cog):
         """
         try:
             await interaction.response.defer()
+            self.db = self.bot.get_cog('Database')
             if member is None:
                 member = interaction.user  # If no member is specified, use the user who invoked the command
 
@@ -48,8 +112,10 @@ class RankCore(commands.Cog):
 
         except requests.RequestException:
             await interaction.followup.send("Error fetching images for rank card.", ephemeral=True)
+            print("Error fetching images for rank card.")
         except Exception as e:
             await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
+            print(f"An error occurred: {str(e)}")
             return
 
         # Calculate xp, level, and rank
@@ -59,21 +125,45 @@ class RankCore(commands.Cog):
         rank = await self.db.handle_user(interaction.guild.id, "get_rank", user_id=member.id)
 
         card_settings = Settings(
-            background="/images/card_blank.png",
-            text_color="white",
-            bar_color="#800080"
+            background="https://i.imgur.com/pyoODQI.png",
+            text_color="black",
+            bar_color="#00008B"
         )
-        card = RankCard(
-            settings=card_settings,
-            username=member.display_name,
-            avatar=member.avatar.url,
-            level=level,
-            rank=rank,
-            current_exp=xp,
-            max_exp=xp_to_next_level
-        )
-        image = await card.card3()  # Generate the card image
-        file = discord.File(fp=image, filename='image.png')
+        stats_card = Sandbox(
+                username=member.display_name,
+                level=user['level'],
+                current_exp=user['xp'],
+                max_exp = round(((1.2 ** (user['level'] + 1) - 1) * 100) / 0.2),
+                settings=card_settings,
+                avatar=member.avatar.url
+            )
+        result = await stats_card.custom_canvas(
+                avatar_frame="square",
+                avatar_size=250,  # Increased size for larger canvas
+                avatar_position=(258, 0),  # Adjusted position
+                exp_bar_background_colour="black",
+                exp_bar_height=30,  # Slightly increased height
+                exp_bar_width=715,  # Increased width for larger canvas
+                exp_bar_curve=20,
+                exp_bar_position=(25, 387),  # Adjusted position
+                username_position=(300, 260),  # Adjusted position
+                username_font_size=80,  # Increased font size
+                level_position=(550, 200),  # Adjusted position
+                exp_position=(520, 330),  # Adjusted position
+                canvas_size=(768, 440),
+                overlay=[
+                    #[(350, 233), (300, 50), "black", 100],
+                    #[(280, 50), (20, 328), "black", 100]  # Size (width, height), Position (x, y), Color, Opacity
+                ],
+                extra_text=[
+                    # Adjust the positions and potentially the font size for these texts
+                    ["Roles: " + str(len(member.roles)), (25, 355), 25, "black"],  # Increased font size
+                    ["Messages: " + str(user['message_count']), (25, 330), 25, "black"],  # Increased font size
+                    ["Emoji: " + str(user['emoji_count']), (160, 330), 25, "black"],  # Increased font size
+                    ["Highest Role: " + str(member.top_role), (110, 355), 25, "black"],  # Increased font size
+                ]
+            )
+        file = discord.File(fp=result, filename='user_stats.png')
         await interaction.followup.send(file=file)
 
 
