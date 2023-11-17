@@ -139,6 +139,7 @@ class RemoveFAQSelect(Select):
             # Send a success message
             await interaction.response.send_message(f"FAQ #{faq_number} has been removed successfully.", ephemeral=True)
             print(f"FAQ #{faq_number} has been removed successfully.")
+            await SetupCommand.sync_faq(interaction)
         except Exception as e:
             # Send an error message in case of exceptions
             await interaction.response.send_message(f"Error removing FAQ: {e}", ephemeral=True)
@@ -180,11 +181,14 @@ class AddFAQModal(Modal):
             await database_cog.handle_faq(interaction.guild.id, "add", number=self.number, name=name, content=content)
 
             # Send a success message
-            embed = await embed_cog.create_embed(title="Success", description=f"FAQ #{self.number} - {name} has been added successfully.", color=Colour.green())
+            embed = await embed_cog.create_embed(title="Success", description=f"FAQ #{self.number} - {name} has been added successfully.", 
+                                                 color=Colour.green())
             await interaction.response.send_message(embed=embed, ephemeral=True)
+            await SetupCommand.sync_faq(interaction)
         except Exception as e:
             # Handle general exceptions
-            embed = await embed_cog.create_embed(title="Error", description=f"Error adding FAQ: {e}", color=Colour.red())
+            embed = await embed_cog.create_embed(title="Error", description=f"Error adding FAQ: {e}", 
+                                                 color=Colour.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
@@ -221,10 +225,12 @@ class RoleMappingModal(Modal):
             database_cog = self.bot.get_cog("Database")
             await database_cog.handle_server_role(interaction.guild.id, "set", button_name, role_name, role_id, emoji)
             
-            embed = await embed_cog.create_embed(title="Success", description=f"Role and button mapping for '{button_name}' added successfully!", color=Colour.green())
+            embed = await embed_cog.create_embed(title="Success", description=f"Role and button mapping for '{button_name}' added successfully!", 
+                                                 color=Colour.green())
             await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
-            embed = await embed_cog.create_embed(title="Error", description=f"Error adding role and button mapping: {e}", color=Colour.red())
+            embed = await embed_cog.create_embed(title="Error", description=f"Error adding role and button mapping: {e}", 
+                                                 color=Colour.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class RoleSelect(Select):
@@ -327,6 +333,39 @@ class SetupCommand(commands.Cog):
         view.add_item(select)
         # Send the embed and the select menu view in the same message
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    async def sync_faq(self, interaction: discord.Interaction) -> None:
+        """Synchronizes FAQs to a specific channel."""
+        db_cog = self.bot.get_cog("Database")
+        embed_cog = self.bot.get_cog("CreateEmbed")
+
+        guild_id = interaction.guild.id
+        faq_channel_info = await db_cog.handle_channel(guild_id, action="get_channel", display_name="FAQ")
+
+        if not faq_channel_info or len(faq_channel_info[0]) < 3:
+            await interaction.followup.send(embed=await embed_cog.create_embed(title="Error", 
+                                                                               description="FAQ channel not found or incomplete data. Please make sure a channel is mapped named FAQ", 
+                                                                               color=discord.Colour.red()), ephemeral=True)
+            return
+        faq_channel = self.bot.get_channel(faq_channel_info[0][2])
+        if not faq_channel:
+            await interaction.followup.send(embed=await embed_cog.create_embed(title="Error", 
+                                                                               description="FAQ channel does not exist in Discord.", 
+                                                                               color=discord.Colour.red()), ephemeral=True)
+            return
+        all_faqs = await db_cog.handle_faq(guild_id, "get_all")
+        if not all_faqs:
+            await interaction.followup.send("No FAQs have been set up yet.")
+            return
+        embed = Embed(title="Frequently Asked Questions", description="", color=Colour.blue())
+        for faq in all_faqs:
+            if len(faq) >= 3:
+                embed.add_field(name=f"FAQ #{faq[0]} - {faq[1]}", value=faq[2], inline=False)
+        try:
+            faq_message = await faq_channel.fetch_message(faq_channel.last_message_id) if faq_channel.last_message_id else None
+            await (faq_message.edit(embed=embed) if faq_message else faq_channel.send(embed=embed))
+        except discord.NotFound:
+            await faq_channel.send(embed=embed)
 
 class ChannelSelect(Select):
     def __init__(self, bot, db_cog, guild_id, channel_type):

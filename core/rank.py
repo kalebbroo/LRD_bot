@@ -125,7 +125,7 @@ class RankCore(commands.Cog):
         rank = await self.db.handle_user(interaction.guild.id, "get_rank", user_id=member.id)
 
         card_settings = Settings(
-            background="https://i.imgur.com/pyoODQI.png",
+            background="https://i.imgur.com/JdLvi95.png",
             text_color="black",
             bar_color="#00008B"
         )
