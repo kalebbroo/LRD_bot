@@ -139,17 +139,19 @@ class RankCore(commands.Cog):
             )
         result = await stats_card.custom_canvas(
                 avatar_frame="square",
-                avatar_size=250,  # Increased size for larger canvas
-                avatar_position=(258, 0),  # Adjusted position
+                avatar_size=250,
+                avatar_position=(258, 0),
                 exp_bar_background_colour="black",
-                exp_bar_height=30,  # Slightly increased height
-                exp_bar_width=715,  # Increased width for larger canvas
+                exp_bar_height=30,
+                exp_bar_width=715,
                 exp_bar_curve=20,
-                exp_bar_position=(25, 387),  # Adjusted position
-                username_position=(300, 260),  # Adjusted position
-                username_font_size=80,  # Increased font size
-                level_position=(550, 200),  # Adjusted position
-                exp_position=(520, 330),  # Adjusted position
+                exp_bar_position=(25, 387),
+                username_position=(265, 245),
+                username_font_size=70,
+                level_position=(800, 200),
+                level_font_size=50,
+                exp_position=(540, 340),
+                exp_font_size=40,
                 canvas_size=(768, 440),
                 overlay=[
                     #[(350, 233), (300, 50), "black", 100],
@@ -157,10 +159,11 @@ class RankCore(commands.Cog):
                 ],
                 extra_text=[
                     # Adjust the positions and potentially the font size for these texts
-                    ["Roles: " + str(len(member.roles)), (25, 355), 25, "black"],  # Increased font size
-                    ["Messages: " + str(user['message_count']), (25, 330), 25, "black"],  # Increased font size
-                    ["Emoji: " + str(user['emoji_count']), (160, 330), 25, "black"],  # Increased font size
-                    ["Highest Role: " + str(member.top_role), (110, 355), 25, "black"],  # Increased font size
+                    ["Roles: " + str(len(member.roles)), (20, 350), 30, "#D3D3D3"],
+                    ["Messages: " + str(user['message_count']), (20, 320), 30, "#D3D3D3"],
+                    ["Emoji: " + str(user['emoji_count']), (185, 320), 30, "#D3D3D3"],
+                    ["Highest Role: " + str(member.top_role), (120, 350), 30, "#D3D3D3"],
+                    ["Level: " + str(user['level']), (560, 210), 38, "white"],
                 ]
             )
         file = discord.File(fp=result, filename='user_stats.png')
