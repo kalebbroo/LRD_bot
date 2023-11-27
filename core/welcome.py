@@ -3,8 +3,12 @@ from discord import app_commands, Colour
 from discord.ext import commands, tasks
 from discord.ui import Button, View, Modal, TextInput
 from datetime import datetime, timedelta
+from PIL import Image, ImageDraw, ImageFont
+from DiscordLevelingCard import Sandbox, Settings
 from typing import Dict, List, Tuple
 import json
+import os
+import random
 
 class RoleButton(Button):
     cooldown_users = {}
@@ -134,35 +138,76 @@ class WelcomeNewUser(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        # Fetch Database and Embed cogs
         db_cog = self.bot.get_cog("Database")
-        embed_cog = self.bot.get_cog("CreateEmbed")
-
-        # Fetch welcome channel name from the database
-        welcome_channel_name = await db_cog.handle_channel(member.guild.id, "get_welcome_channel")
-
-        if welcome_channel_name:
-            # Find the welcome channel in the guild using the fetched name
-            welcome_channel = discord.utils.get(member.guild.text_channels, name=welcome_channel_name)
-        else:
-            print(f"No welcome channel name found in the database for {member.guild.name}")
+        if not db_cog:
+            print("Database cog not found.")
             return
+
+        welcome_channel = await db_cog.handle_channel(member.guild.id, "get_channel", display_name="general")
+
         if not welcome_channel:
-            print(f"No channel named {welcome_channel_name} found in {member.guild.name}")
-            return
+            welcome_channel = member.guild.system_channel
+            print(f"No channel mapped named general in {member.guild.name}. Using system channel instead.")
 
-        # Construct the welcome message embed
-        embed_title = "Welcome"
-        embed_description = f"Welcome <@{member.id}> to {member.guild.name}! Please check out {welcome_channel.mention} to get your roles."
-        embed_color = discord.Colour.blue()
-        welcome_embed = await embed_cog.create_embed(title=embed_title, description=embed_description, color=embed_color)
+        images_folder_path = "./images/welcome_cards"
+        # List all files in the folder
+        all_images = os.listdir(images_folder_path)
+        # Filter out non-image files if necessary (assuming images are in .png or .jpg format)
+        image_files = [file for file in all_images if file.endswith('.png')]
+        # Select a random image file
+        random_background = random.choice(image_files) if image_files else None
 
-        # Send the welcome message to the guild's system channel, if available; otherwise, send it to the user directly
-        general_channel = member.guild.system_channel
-        if general_channel:
-            await general_channel.send(embed=welcome_embed)
+        font = ImageFont.truetype('./images/Minecraftia.ttf', 30) # Font path, font size
+
+        image = Image.new('RGB', (1000, 333), color='white') # Create a new image with a white background
+        draw = ImageDraw.Draw(image)
+
+        text_width, text_height = draw.textsize(f"Welcome {member.display_name}", font=font) # The width of the first line
+        second_line_width, _ = draw.textsize("to the LittleRoomDev Official", font=font) # The width of the second line
+
+        centered_x_position = 330 + (second_line_width - text_width) // 2 # The x position of the first line so its centered
+
+        if random_background:
+            background_path = os.path.join(images_folder_path, random_background)
+
+            # Create a welcome image card
+            card_settings = Settings(
+                background=background_path,  # Using the path of the selected image
+                text_color="white",
+                bar_color="#00008B"  # Not used, but required for Settings
+            )
+            welcome_card = Sandbox(
+                username="",
+                level=1,  # Dummy value, as level is not used here
+                current_exp=0,  # Dummy value, as XP is not used here
+                max_exp=100,  # Dummy value, as XP is not used here
+                settings=card_settings,
+                avatar=member.avatar.url
+            )
+            result = await welcome_card.custom_canvas(
+                avatar_frame="curvedborder",
+                avatar_size=230,
+                avatar_position=(50, 50), 
+                text_font="./images/Minecraftia.ttf",
+                level_position=(1500, 1200), # move off canvas
+                exp_bar_width=0, # hide xp bar
+                exp_bar_height=0, # hide xp bar
+                exp_position=(1500, 1400), # move off canvas
+                username_position=(400, 50), 
+                username_font_size=60,
+                canvas_size=(1000, 333),
+                overlay = [[(950, 250), (25, 41), "black", 180]], # Size (width, height), Position (x, y), Color, Opacity
+                extra_text = [
+                        [f"Welcome {member.display_name}", (centered_x_position, 50), 30, "white"],
+                        ["to the LittleRoomDev Official", (330, 120), 30, "white"],
+                        ["Discord Server!", (450, 200), 30, "white"]
+                    ]
+                )
+            file = discord.File(fp=result, filename='welcome_image.png')
+            await welcome_channel.send(file=file, content=f"Welcome {member.mention}!")
         else:
-            await member.send(embed=welcome_embed)
+            print("No images found in the images folder. Skipping welcome card creation.")
+            return
 
 
     async def setup_message(self, guild_id):
