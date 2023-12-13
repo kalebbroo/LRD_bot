@@ -368,33 +368,33 @@ class SetupCommand(commands.Cog):
             await faq_channel.send(embed=embed)
 
 class ChannelSelect(Select):
-    def __init__(self, bot, db_cog, guild_id, channel_type):
+    def __init__(self, bot, channel_names, guild_id, channel_type):
         super().__init__(placeholder='Choose a channel')
         self.bot = bot
-        self.db_cog = db_cog
         self.guild_id = guild_id
         self.channel_type = channel_type
-        self.options = []
+        self.db_cog = bot.get_cog("Database")  # Get the database cog
 
-    async def set_options_from_db(self):
-        # Get channel info from the new Database cog's method
-        channel_info = await self.db_cog.handle_channel(self.guild_id, "get_channel_info")
-        # Populate the dropdown options
-        self.options = [discord.SelectOption(label=name, value=json.dumps({"name": name, "id": channel_id})) for name, channel_id in channel_info]
+        # Populate the dropdown options with the channel names
+        self.options = [discord.SelectOption(label=name, value=name) for name in channel_names]
 
     async def callback(self, interaction):
-        selected_channel_data = json.loads(self.values[0])
-        selected_channel_display_name = selected_channel_data["name"]
-        selected_channel_id = selected_channel_data["id"]
+        selected_channel_name = self.values[0]
         
-        guild_id = interaction.guild.id
-        selected_channel = discord.utils.get(interaction.guild.text_channels, id=int(selected_channel_id))
-        
+        # Fetch channel info from the database using the selected channel name
+        channel_info = await self.db_cog.handle_channel(self.guild_id, "get_channel", display_name=selected_channel_name)
+        if channel_info:
+            selected_channel_id = channel_info[0][2]  # The ID is in this position in the result
+            selected_channel = discord.utils.get(interaction.guild.text_channels, id=int(selected_channel_id))
+        else:
+            await interaction.response.send_message("Channel not found in the database.", ephemeral=True)
+            return
+
         welcome_cog = self.bot.get_cog('WelcomeNewUser')
         if self.channel_type == "support":
             modal = welcome_cog.SetupModal(self.bot, interaction, channel=selected_channel, modal_type="support")
         elif self.channel_type == "welcome":
-            role_mapping, _ = await welcome_cog.get_role_mapping(guild_id)
+            role_mapping, _ = await welcome_cog.get_role_mapping(self.guild_id)
             modal = welcome_cog.SetupModal(self.bot, interaction, role_mapping=role_mapping, channel=selected_channel, modal_type="welcome")
         
         await interaction.response.send_modal(modal)

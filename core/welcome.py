@@ -133,7 +133,9 @@ class WelcomeNewUser(commands.Cog):
                 sent_message = await self.channel.send(embed=embed, view=view)
                 await interaction.response.send_message("Support page has been set up successfully!", ephemeral=True)
 
-            await database_cog.set_channel_mapping(interaction.guild.id, self.channel.name.capitalize(), self.channel.name, self.channel.id, embed_data_str, sent_message.id)
+            await database_cog.handle_channel(interaction.guild.id, "set_mapping", 
+                                               display_name=self.channel.name.capitalize(), channel_name=self.channel.name, channel_id=self.channel.id, 
+                                               message=embed_data_str, message_id=sent_message.id)
             # TODO: make the channel setup only choose the channel then it should set the display name as same as the channel just uppercase and the id as the channel id
 
     @commands.Cog.listener()
