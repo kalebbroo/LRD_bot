@@ -10,7 +10,7 @@ class Support(commands.Cog):
         self.bot = bot
         self.embed_cog = bot.get_cog("CreateEmbed")
         self.db = bot.get_cog("Database")
-        # TODO: Maybe make a db entry for userswhen they make a ticket? Just to keep track?
+        # TODO: Maybe make a db entry for users when they make a ticket? Just to keep track?
 
     class TicketButton(View):
         def __init__(self, bot, interaction):
@@ -251,7 +251,7 @@ class Support(commands.Cog):
                                         style=discord.TextStyle.long,
                                         placeholder=f"Enter your {ticket_type} issue here.",
                                         min_length=1,
-                                        max_length=4000,
+                                        max_length=1500,
                                         required=True)
             self.add_item(self.details_input)
 
@@ -265,24 +265,15 @@ class Support(commands.Cog):
             plugin_versions: str = self.plugin_versions_input.value  # Plugin versions from the input component
             details: str = self.details_input.value  # Additional details from the input component
             
-            # Get the support channel display name from the database
-            support_channel_name: str = await self.db.handle_channel(
-                interaction.guild.id, 'get_support_channel'
-            )
-            if support_channel_name:
-                # If a support channel exists, fetch its ID from the database
-                support_channel_info = await self.db.handle_channel(
-                    interaction.guild.id, 'get_channel_info'
-                )
-                # Search for the support channel ID based on its name
-                support_channel_id = next(
-                    (info[1] for info in support_channel_info if info[0] == support_channel_name), None
-                )
-                # Get the discord.Channel object corresponding to the support channel
-                support_channel: discord.TextChannel = self.bot.get_channel(support_channel_id)
-            else:
-                # If no support channel is found, send an ephemeral message and exit the function
-                await interaction.followup.send("No Support channel found.", ephemeral=True)
+            self.db = self.bot.get_cog("Database")
+
+            # Get the channel from the interaction
+            support_channel_id = interaction.channel.id
+            support_channel = self.bot.get_channel(support_channel_id)
+
+            # Check if the support channel is found
+            if support_channel is None:
+                await interaction.response.send_message("Support channel not found. Please contact an administrator.", ephemeral=True)
                 return
             
             # Create a private thread in the support channel for the ticket

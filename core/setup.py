@@ -170,6 +170,7 @@ class AddFAQModal(Modal):
         self.add_item(self.content_input)
 
     async def on_submit(self, interaction):
+        # TODO: Update the FAQ channel with the new FAQ. Use the new Database cog to fetch the FAQs. similar to how its displayed in /faq command
         try:
             name = self.name_input.value
             content = self.content_input.value
