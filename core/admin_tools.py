@@ -297,7 +297,7 @@ class AdminControls(commands.Cog):
             try:
                 # Check for keywords
                 keywords = ["help", "support", "assist", "pack", "how", "fix", "ia", "itemsadder",
-                            "install", "bought", "download", "purchase", "sorry",
+                            "install", "bought", "download", "purchase", "sorry", "oraxen",
                             "solve", "fix", "problem", "issue", "error", "bug", "glitch", "crash", "crashing",
                             "mcmodels", "buy", "patreon", "npc", "citizens", "mythicmobs", "modelengine", "meg", "meg4",]
                 if any(keyword in message.content.lower() for keyword in keywords):

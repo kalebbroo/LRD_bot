@@ -64,25 +64,25 @@ class WelcomeNewUser(commands.Cog):
                                             style=discord.TextStyle.long,
                                             placeholder='First message...',
                                             min_length=1,
-                                            max_length=4000,
+                                            max_length=500,
                                             required=True)
             self.message_input2 = TextInput(label='Enter the second message',
                                             style=discord.TextStyle.long,
                                             placeholder='Second message...',
                                             min_length=1,
-                                            max_length=4000,
+                                            max_length=500,
                                             required=True)
             self.message_input3 = TextInput(label='Enter the third message',
                                             style=discord.TextStyle.long,
                                             placeholder='Third message...',
                                             min_length=1,
-                                            max_length=4000,
+                                            max_length=500,
                                             required=True)
             self.message_input4 = TextInput(label='Enter the fourth message',
                                             style=discord.TextStyle.long,
                                             placeholder='Fourth message...',
                                             min_length=1,
-                                            max_length=4000,
+                                            max_length=500,
                                             required=True)
 
             self.add_item(self.message_input1)

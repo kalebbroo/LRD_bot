@@ -47,7 +47,7 @@ class Commissions(commands.Cog):
                 style=discord.TextStyle.long,
                 placeholder="Describe the commission here",
                 min_length=1,
-                max_length=4000,
+                max_length=1500,
                 required=True
             )
             self.add_item(self.description)
