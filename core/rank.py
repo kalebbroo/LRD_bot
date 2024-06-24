@@ -59,9 +59,10 @@ class RankCore(commands.Cog):
         level = user['level']
         xp_to_next_level = round(((1.2 ** (level + 1) - 1) * 100) / 0.2)
         rank = await self.db.handle_user(interaction.guild.id, "get_rank", user_id=member.id)
+        local_image_path = "./images/rank_upscale.png" 
 
         card_settings = Settings(
-            background="https://i.imgur.com/JdLvi95.png",
+            background=local_image_path,
             text_color="black",
             bar_color="#00008B"
         )

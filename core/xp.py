@@ -55,6 +55,7 @@ class XPCore(commands.Cog):
             if xp is None:
                 print(f"XP value is None for user ID {user_id} in guild {guild_id}.")
                 return
+            print(f"Channel ID in add_xp: {channel_id}")
             # Fetch the user data from the database using the new db_cog's handle_user method
             user = await self.db_cog.handle_user(guild_id, "get", user_id=user_id)
             # Check for a current event that might modify XP
@@ -75,7 +76,12 @@ class XPCore(commands.Cog):
             # Update the level if it has increased
             if level > user['level']:
                 user['level'] = level
-                await self.bot.get_cog('RankCore').level_up(user_id, guild_id, channel_id)
+                try:
+                    print(f"Leveling up user {name} in guild {guild_id} in channel {channel_id}")
+                    await self.bot.get_cog('RankCore').level_up(user_id, guild_id, channel_id)
+                except Exception as e:
+                    print(f"Error in add_xp: {e}")
+                    pass
 
             # Calculate the XP required for the next level
             next_level_xp = ((1.2 ** (user['level'] + 1) - 1) * 100) / 0.2
@@ -95,6 +101,7 @@ class XPCore(commands.Cog):
         Listener to handle when a message is sent. Add XP to the user.
         """
         try:
+            await asyncio.sleep(0.3)
             if message.author.bot:
                 return
             # Check if the message is a command
@@ -116,7 +123,9 @@ class XPCore(commands.Cog):
             xp = random.randint(5, 50)
             print(f"Adding {xp} XP to user {user_id}")
             # Add xp to the user
-            await self.add_xp(user_id, guild_id, xp, message.channel.id)
+            channel_id = ctx.channel.id
+            print(f"Channel ID: {channel_id}")
+            await self.add_xp(user_id, guild_id, xp, channel_id)
 
             # Fetch updated user data from database
             updated_user = await self.db_cog.handle_user(guild_id, 'get', user_id=user_id)
@@ -173,6 +182,7 @@ class XPCore(commands.Cog):
             # Initialize XP value
             xp = 10  # Set a base XP value
             # Check if there is a current event that modifies the XP
+            # TODO: build out event logic
             if self.current_event is not None and self.current_event['name'] == "Voice Chat Vibes":
                 xp = self.current_event['bonus'](xp)
 

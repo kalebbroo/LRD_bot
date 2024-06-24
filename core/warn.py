@@ -12,8 +12,6 @@ class WarnCore(commands.Cog):
     def __init__(self, bot: commands.Bot):
         """Initialize the WarnCore with the bot object."""
         self.bot = bot
-        self.db_cog = self.bot.get_cog('Database')
-        self.embed_cog = self.bot.get_cog('CreateEmbed')
 
     @app_commands.command(name='warn', description='Log a warning for a user')
     @app_commands.describe(member='The member to warn')
@@ -25,11 +23,13 @@ class WarnCore(commands.Cog):
         """
         try:
             await interaction.response.defer()
+            db = self.bot.get_cog('Database')
+            embed_cog = self.bot.get_cog('CreateEmbed')
             user_id = member.id
             guild_id = interaction.guild.id
 
             # Retrieve user data from the database
-            user = await self.db_cog.handle_user(guild_id, "get", user_id=user_id)
+            user = await db.handle_user(guild_id, "get", user_id=user_id)
             warnings = json.loads(user['warnings'])
 
             # Append new warning details to the list
@@ -44,7 +44,7 @@ class WarnCore(commands.Cog):
             user['warnings'] = json.dumps(warnings)
             
             # Update user data in the database
-            await self.db_cog.handle_user(guild_id, "update", user_id=user_id, user_data=user)
+            await db.handle_user(guild_id, "update", user_id=user_id, user_data=user)
 
             # Create embed using CreateEmbed cog
             fields = [
@@ -52,7 +52,7 @@ class WarnCore(commands.Cog):
                 (f"⚠️ Warned by {interaction.user.display_name}", f"**Reason:** {reason}", False),
                 ("🔔 Notice", "Repeated warnings may result in being muted or kicked from the server. Please follow the rules.", False)
             ]
-            embed = await self.embed_cog.create_embed(
+            embed = await embed_cog.create_embed(
                 title="⚠️ Warning Issued ⚠️",
                 color=0xff0000,
                 author_name=member.display_name,
@@ -73,11 +73,13 @@ class WarnCore(commands.Cog):
         """
         try:
             await interaction.response.defer()
+            db = self.bot.get_cog('Database')
+            embed_cog = self.bot.get_cog('CreateEmbed')
             user_id = member.id
             guild_id = interaction.guild.id
 
             # Retrieve user data from the database
-            user = await self.db_cog.handle_user(guild_id, "get", user_id=user_id)
+            user = await db.handle_user(guild_id, "get", user_id=user_id)
             warnings = json.loads(user['warnings'])
 
             if len(warnings) == 0:
@@ -93,7 +95,7 @@ class WarnCore(commands.Cog):
                 fields.append((f"⚠️ Warned on {timestamp} by {issuer.display_name}", f"**Reason:** {warning['reason']}", False))
 
             # Create embed using CreateEmbed cog
-            embed = await self.embed_cog.create_embed(
+            embed = await embed_cog.create_embed(
                 title="⚠️ Warnings ⚠️",
                 color=color,
                 author_name=member.display_name,
