@@ -19,13 +19,11 @@ class Support(commands.Cog):
 
         @discord.ui.button(style=ButtonStyle.success, label="Create Support Ticket", custom_id="support_ticket", row=1)
         async def support_ticket(self, interaction, button):
-
             select_menu = Support.ChooseTicket(self.bot, interaction)
             view = discord.ui.View()
             view.add_item(select_menu)
             embed = discord.Embed(title="Support Ticket", description="Please choose the type of ticket you'd like to create:", color=Colour.green())
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-        
 
         @discord.ui.button(style=ButtonStyle.danger, label="Report A User", custom_id="report", row=1)
         async def report(self, interaction, button):
@@ -90,7 +88,6 @@ class Support(commands.Cog):
                 discord.SelectOption(label='Patreon Plugins', value='patreon_plugins'),
                 discord.SelectOption(label='Other', value='other'),
             ]
-
             super().__init__(placeholder='Choose an image to use as a reference', options=options)
 
         async def callback(self, interaction):
@@ -295,11 +292,17 @@ class Support(commands.Cog):
                     ("Additional Details", details, False)
                 ]
             )
+            view = discord.ui.View()
+            view.add_item(Support.CloseTicketButton(self.bot))
+            view.add_item(Support.AddUserButton(self.bot))
             # Send the embed message to the newly created thread
-            await thread.send(embed=embed)
+            await thread.send(embed=embed, view=view)
             
-            # Notify the user that they can upload additional details in the thread
-            await thread.send(f"{interaction.user.mention}, you can upload any images or logs needed here.")
+            moderator_role = discord.utils.get(interaction.guild.roles, name="Moderator")
+            if moderator_role:
+                await thread.send(f"{interaction.user.mention}, your ticket has been created. {moderator_role.mention}, please assist.")
+            else:
+                await thread.send(f"{interaction.user.mention}, your ticket has been created. You can upload any images or logs needed here.")
 
     class SupportMessageModal(Modal):
         def __init__(self, bot, guild_id, channel_display_name):
@@ -337,8 +340,58 @@ class Support(commands.Cog):
             # Post the message with the buttons in the support channel
             await channel.send(content=support_msg, view=view)
 
+    class CloseTicketButton(discord.ui.Button):
+        def __init__(self, bot):
+            super().__init__(style=ButtonStyle.danger, label="Close Ticket", custom_id="close_ticket")
+            self.bot = bot
 
+        async def callback(self, interaction: Interaction):
+            thread = interaction.channel
+            if isinstance(thread, discord.Thread):
+                # Unarchive the thread if it's archived
+                if thread.archived:
+                    await thread.edit(archived=False)
+                # Send a confirmation message in the thread
+                await interaction.response.send_message("This ticket has been successfully closed. To reopen this ticket for any reason, contact a mod.")
+                # Close the ticket (archive the thread again)
+                await thread.edit(archived=True, locked=True)
+            else:
+                await interaction.response.send_message("This command can only be used in a ticket thread.", ephemeral=True)
 
+    class AddUserButton(discord.ui.Button):
+        def __init__(self, bot):
+            super().__init__(style=ButtonStyle.secondary, label="Add User to Ticket", custom_id="add_user")
+            self.bot = bot
+
+        async def callback(self, interaction: discord.Interaction):
+            modal = Support.AddUserModal(self.bot)
+            await interaction.response.send_modal(modal)
+
+    class AddUserModal(Modal):
+        def __init__(self, bot):
+            super().__init__(title="Add User to Ticket")
+            self.bot = bot
+
+            self.user_id_input = TextInput(label='Enter User ID to add',
+                                        style=discord.TextStyle.short,
+                                        placeholder='Enter User ID',
+                                        min_length=1,
+                                        max_length=20,
+                                        required=True)
+            self.add_item(self.user_id_input)
+
+        async def on_submit(self, interaction: discord.Interaction):
+            user_id = int(self.user_id_input.value)
+            thread = interaction.channel
+            if isinstance(thread, discord.Thread):
+                user = thread.guild.get_member(user_id)
+                if user:
+                    await thread.add_user(user)
+                    await interaction.response.send_message(f"{user.mention} has been added to the ticket.", ephemeral=True)
+                else:
+                    await interaction.response.send_message("User not found.", ephemeral=True)
+            else:
+                await interaction.response.send_message("This command can only be used in a ticket thread.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Support(bot))
